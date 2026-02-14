@@ -126,6 +126,9 @@ def _now() -> str:
 
 # ── Markdown doc template ─────────────────────────────────────────────────────
 
+_DEFAULT_SECTION = "## 描述\n\n"
+
+
 def _doc_template(item_id: str, title: str, item_type: str) -> str:
     """Generate a Markdown doc template for a new item."""
     sections = {
@@ -250,7 +253,7 @@ sequenceDiagram
 
 > Type: {item_type} | Created: {_now()}
 
-{sections.get(item_type, "## 描述\\n\\n")}
+{sections.get(item_type, _DEFAULT_SECTION)}
 """
 
 

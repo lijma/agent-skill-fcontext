@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fcontext"
+version = "1.0.0"
+description = "Context continuity across AI agents & sessions. Team knowledge collaboration. Industrial-grade AI delivery."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "Apache-2.0"}
+dependencies = [
+    "markitdown",
+]
+
+[project.scripts]
+fcontext = "fcontext.cli:main"
+
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning:pytz",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]

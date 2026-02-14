@@ -2,7 +2,7 @@ name: Release to PyPI
 
 on:
   push:
-    branches: [release]
+    tags: ['v*']
 
 jobs:
   test:
@@ -43,6 +43,6 @@ jobs:
 
       - name: Publish to PyPI
         env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+          TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
         run: twine upload dist/*

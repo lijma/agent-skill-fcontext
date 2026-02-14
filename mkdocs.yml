@@ -1,0 +1,84 @@
+site_name: fcontext
+site_url: https://lijma.github.io/agent-skill-fcontext/
+site_description: Context continuity across AI agents & sessions. Team knowledge collaboration. Industrial-grade AI delivery.
+site_author: Marvin Li
+repo_url: https://github.com/lijma/agent-skill-fcontext
+repo_name: lijma/agent-skill-fcontext
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+    - content.tabs.link
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - mermaid-zoom
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_div_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/lijma/agent-skill-fcontext
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/fcontext/
+
+extra_javascript:
+  - assets/javascripts/mermaid.min.js
+
+nav:
+  - Home:
+      - Overview: index.md
+      - Getting Started: getting-started.md
+      - Features: features.md
+      - For Individuals: use-cases/individuals.md
+      - For Teams & Enterprises: use-cases/enterprises.md
+  - Demos:
+      - Cross-Session Memory: demos/cross-session.md
+      - Domain Learning: demos/domain-learning.md
+      - Requirements-Driven Dev: demos/requirements-driven.md
+      - Team Onboarding: demos/team-onboarding.md
+      - Enterprise Context Network: demos/context-network.md
+  - Reference:
+      - Architecture: architecture.md
+      - Commands: commands.md
+  - Contributing: contributing.md

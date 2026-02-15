@@ -2,6 +2,8 @@
 
 **Context continuity across AI agents & sessions.**
 
+<a href="https://www.producthunt.com/products/fcontext/reviews/new?utm_source=badge-product_review&utm_medium=badge&utm_source=badge-fcontext" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/product_review.svg?product_id=1164662&theme=light" alt="fcontext - Context&#0032;continuity&#0032;across&#0032;AI&#0032;coding&#0032;agents&#0032;&#0038;&#0032;sessions | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+
 ---
 
 | | |

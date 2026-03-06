@@ -1,7 +1,13 @@
 """Tests for fcontext index."""
 import json
+import os
 from pathlib import Path
-from fcontext.indexer import run_index, run_index_file, run_index_dir, run_status, run_clean
+from unittest.mock import patch, MagicMock
+from fcontext.indexer import (
+    run_index, run_index_file, run_index_dir, run_status, run_clean,
+    _load_index, _save_index, _convert_file, _copy_text_file, _index_one,
+    _cache_dir, _cache_filename, _scan_convertible, _index_path,
+)
 
 
 class TestIndex:
@@ -285,3 +291,252 @@ class TestIndexText:
         assert "config.yaml" not in names
         assert "page.html" not in names
         assert "app.log" not in names
+
+
+# ── Coverage gap tests for indexer ────────────────────────────────────────────
+
+class TestLoadIndexExisting:
+    """Cover _load_index when index file exists — and when it doesn't (L60)."""
+
+    def test_load_existing_index(self, workspace: Path):
+        _save_index(workspace, {"test.md": {"md": ".fcontext/_cache/test.md", "mtime": 0}})
+        data = _load_index(workspace)
+        assert "test.md" in data
+
+    def test_load_index_no_file(self, empty_dir: Path):
+        """L60: _load_index returns {} when no _index.json exists."""
+        data = _load_index(empty_dir)
+        assert data == {}
+
+
+class TestConvertFileError:
+    """Cover _convert_file failure path (L101-103)."""
+
+    def test_convert_file_exception(self, workspace: Path, tmp_path: Path, capsys):
+        import sys
+        source = tmp_path / "doc.pdf"
+        source.write_bytes(b"%PDF-1.4 content")
+        cache_path = tmp_path / "output.md"
+        # Force ImportError by setting markitdown to None in sys.modules
+        real_mod = sys.modules.get("markitdown")
+        try:
+            sys.modules["markitdown"] = None  # type: ignore
+            result = _convert_file(source, cache_path, "doc.pdf")
+        finally:
+            if real_mod is not None:
+                sys.modules["markitdown"] = real_mod
+            else:
+                sys.modules.pop("markitdown", None)
+        assert result is False
+        assert "doc.pdf" in capsys.readouterr().err
+
+
+class TestCopyTextFileError:
+    """Cover _copy_text_file error path (L113-115)."""
+
+    def test_copy_text_error(self, workspace: Path, tmp_path: Path, capsys):
+        source = tmp_path / "bad.md"
+        source.write_text("content")
+        cache_path = tmp_path / "output.md"
+        with patch("pathlib.Path.read_text", side_effect=PermissionError("denied")):
+            result = _copy_text_file(source, cache_path, "bad.md")
+        assert result is False
+        assert "bad.md" in capsys.readouterr().err
+
+
+class TestRunIndexFileCachePrint:
+    """Cover run_index_file successful caching print (L167: failure path)."""
+
+    def test_index_file_prints_cache_path(self, workspace: Path, capsys):
+        md = workspace / "notes.md"
+        md.write_text("# Notes")
+        capsys.readouterr()
+        rc = run_index_file(workspace, md)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "cached:" in out
+
+    def test_index_file_returns_1_on_failure(self, workspace: Path, capsys):
+        """L167: run_index_file returns 1 when _index_one fails."""
+        import sys
+        pdf = workspace / "bad.pdf"
+        pdf.write_bytes(b"%PDF-1.4 dummy")
+        real_mod = sys.modules.get("markitdown")
+        try:
+            sys.modules["markitdown"] = None  # type: ignore
+            rc = run_index_file(workspace, pdf)
+        finally:
+            if real_mod is not None:
+                sys.modules["markitdown"] = real_mod
+            else:
+                sys.modules.pop("markitdown", None)
+        assert rc == 1
+
+
+class TestRunIndexDirSkipAndFail:
+    """Cover index_dir skip-if-up-to-date and failure (L209-212, L227)."""
+
+    def test_index_dir_skips_up_to_date(self, workspace: Path, capsys):
+        docs = workspace / "docs"
+        docs.mkdir()
+        (docs / "notes.md").write_text("# Notes")
+        run_index_dir(workspace, docs)
+        capsys.readouterr()
+        run_index_dir(workspace, docs)
+        out = capsys.readouterr().out
+        assert "up-to-date" in out
+
+    def test_index_dir_conversion_failure(self, workspace: Path, capsys):
+        import sys
+        docs = workspace / "docs"
+        docs.mkdir()
+        (docs / "bad.pdf").write_bytes(b"%PDF-dummy")
+        capsys.readouterr()
+        real_mod = sys.modules.get("markitdown")
+        try:
+            sys.modules["markitdown"] = None  # type: ignore
+            run_index_dir(workspace, docs)
+        finally:
+            if real_mod is not None:
+                sys.modules["markitdown"] = real_mod
+            else:
+                sys.modules.pop("markitdown", None)
+        out = capsys.readouterr().out
+        assert "failed" in out
+
+
+class TestRunIndexFull:
+    """Cover run_index full workspace scan (L238-281)."""
+
+    def test_run_index_with_text_files(self, workspace: Path, capsys):
+        (workspace / "notes.md").write_text("# Notes content")
+        (workspace / "readme.txt").write_text("Readme content")
+        capsys.readouterr()
+        rc = run_index(workspace)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Found 2 indexable files" in out
+        assert "indexed" in out
+
+    def test_run_index_skips_up_to_date(self, workspace: Path, capsys):
+        (workspace / "doc.md").write_text("# Doc")
+        run_index(workspace)
+        capsys.readouterr()
+        run_index(workspace)
+        out = capsys.readouterr().out
+        assert "up-to-date" in out
+
+    def test_run_index_force_reindexes(self, workspace: Path, capsys):
+        (workspace / "doc.md").write_text("# Doc")
+        run_index(workspace)
+        capsys.readouterr()
+        run_index(workspace, force=True)
+        out = capsys.readouterr().out
+        assert "indexed" in out
+
+    def test_run_index_conversion_failure(self, workspace: Path, capsys):
+        import sys
+        (workspace / "doc.pdf").write_bytes(b"%PDF-1.4 dummy")
+        capsys.readouterr()
+        real_mod = sys.modules.get("markitdown")
+        try:
+            sys.modules["markitdown"] = None  # type: ignore
+            rc = run_index(workspace)
+        finally:
+            if real_mod is not None:
+                sys.modules["markitdown"] = real_mod
+            else:
+                sys.modules.pop("markitdown", None)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "failed" in out
+
+
+class TestRunStatusEdgeCases:
+    """Cover run_status stale/orphaned paths (L296-298)."""
+
+    def test_status_shows_stale(self, workspace: Path, capsys):
+        md = workspace / "doc.md"
+        md.write_text("# Doc")
+        run_index_file(workspace, md)
+        index = _load_index(workspace)
+        for key in index:
+            index[key]["mtime"] = 0
+        _save_index(workspace, index)
+        capsys.readouterr()
+        run_status(workspace)
+        out = capsys.readouterr().out
+        assert "Stale:" in out
+
+    def test_status_shows_orphaned(self, workspace: Path, capsys):
+        md = workspace / "doc.md"
+        md.write_text("# Doc")
+        run_index_file(workspace, md)
+        md.unlink()
+        capsys.readouterr()
+        run_status(workspace)
+        out = capsys.readouterr().out
+        assert "Orphaned:" in out
+        assert "fcontext clean" in out
+
+    def test_status_pending_message(self, workspace: Path, capsys):
+        (workspace / "pending.md").write_text("# Pending")
+        capsys.readouterr()
+        run_status(workspace)
+        out = capsys.readouterr().out
+        assert "fcontext index" in out
+
+
+class TestRunCleanWithFiles:
+    """Cover run_clean with actual cache files (L310)."""
+
+    def test_clean_with_indexed_files(self, workspace: Path, capsys):
+        md = workspace / "doc.md"
+        md.write_text("# Doc")
+        run_index_file(workspace, md)
+        cache = _cache_dir(workspace)
+        assert any(cache.iterdir())
+        capsys.readouterr()
+        rc = run_clean(workspace)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Cleaned:" in out
+        assert "1 cached files removed" in out
+
+
+class TestScanConvertibleSkipsHidden:
+    """Cover _scan_convertible hidden file skip (L84)."""
+
+    def test_scan_skips_dotfiles(self, workspace: Path):
+        (workspace / ".hidden.md").write_text("secret")
+        (workspace / "visible.md").write_text("public")
+        files = _scan_convertible(workspace)
+        names = {f.name for f in files}
+        assert ".hidden.md" not in names
+        assert "visible.md" in names
+
+
+class TestRunIndexDirPrintSummary:
+    """Cover run_index_dir print lines (L193: hidden file skip in scan)."""
+
+    def test_index_dir_print_nothing_found(self, workspace: Path, capsys):
+        docs = workspace / "docs"
+        docs.mkdir()
+        (docs / "data.json").write_text('{}')
+        capsys.readouterr()
+        rc = run_index_dir(workspace, docs)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Found 0 indexable files" in out
+
+    def test_index_dir_skips_dotfiles_in_scan(self, workspace: Path, capsys):
+        """L193: Hidden files in index_dir scan loop should be skipped."""
+        docs = workspace / "docs"
+        docs.mkdir()
+        (docs / ".hidden.md").write_text("# Hidden")
+        (docs / "visible.md").write_text("# Visible")
+        capsys.readouterr()
+        rc = run_index_dir(workspace, docs)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Found 1 indexable files" in out

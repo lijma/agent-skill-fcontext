@@ -1,10 +1,12 @@
 """Tests for fcontext req."""
+import os
 from pathlib import Path
 from fcontext.requirements import (
     req_init, req_add, req_list, req_show, req_set,
     req_board, req_tree, req_comment, req_backlog_md,
     req_link, req_trace,
-    _load_items, _find_item, _parse_links,
+    _load_items, _find_item, _parse_links, _next_id,
+    _csv_path, _docs_dir, _append_changelog,
 )
 
 
@@ -467,3 +469,215 @@ class TestParseLinks:
         result = _parse_links(" evolves : REQ-001 , blocks : REQ-002 ")
         assert ("evolves", "REQ-001") in result
         assert ("blocks", "REQ-002") in result
+
+
+# ── Coverage gap tests ────────────────────────────────────────────────────────
+
+class TestLoadItemsNoCsv:
+    """L84: _load_items when CSV doesn't exist."""
+
+    def test_load_items_no_csv(self, workspace: Path):
+        csv = _csv_path(workspace)
+        if csv.exists():
+            csv.unlink()
+        items = _load_items(workspace)
+        assert items == []
+
+
+class TestNextIdValueError:
+    """L109-110: _next_id with malformed IDs should handle ValueError."""
+
+    def test_next_id_bad_format(self, workspace: Path):
+        # Manually write a CSV with a bad ID
+        csv = _csv_path(workspace)
+        csv.write_text(
+            "id,type,title,status,priority,parent,assignee,tags,created,updated,author,source,links\n"
+            "REQ-abc,requirement,Bad ID,draft,P2,,,,2025-01-01,2025-01-01,,,\n"
+        )
+        items = _load_items(workspace)
+        # Should still generate the next valid ID
+        next_id = _next_id(items, "requirement")
+        assert next_id == "REQ-001"
+
+
+class TestReqListFilterParent:
+    """L372-373: filter_parent in req_list."""
+
+    def test_list_filter_by_parent(self, workspace: Path, capsys):
+        req_add(workspace, "epic", "Parent Epic")
+        req_add(workspace, "requirement", "Child R1", parent="EPIC-001")
+        req_add(workspace, "requirement", "Orphan R2")
+        capsys.readouterr()
+        req_list(workspace, filter_parent="EPIC-001")
+        out = capsys.readouterr().out
+        assert "REQ-001" in out
+        assert "REQ-002" not in out
+
+
+class TestReqShowEdgeCases:
+    """Cover show display branches."""
+
+    def test_show_with_assignee_and_tags(self, workspace: Path, capsys):
+        """L422,424,426: show assignee and tags."""
+        req_add(workspace, "requirement", "With fields",
+                assignee="Alice", tags="backend,api")
+        capsys.readouterr()
+        req_show(workspace, "REQ-001")
+        out = capsys.readouterr().out
+        assert "Alice" in out
+        assert "backend,api" in out
+
+    def test_show_with_parent(self, workspace: Path, capsys):
+        """L422: show parent."""
+        req_add(workspace, "epic", "Epic")
+        req_add(workspace, "requirement", "Child", parent="EPIC-001")
+        capsys.readouterr()
+        req_show(workspace, "REQ-001")
+        out = capsys.readouterr().out
+        assert "EPIC-001" in out
+
+    def test_show_forward_links(self, workspace: Path, capsys):
+        """L436-444: show forward links section."""
+        req_add(workspace, "requirement", "V1 Login")
+        req_add(workspace, "requirement", "V2 Login",
+                links="supersedes:REQ-001")
+        capsys.readouterr()
+        req_show(workspace, "REQ-002")
+        out = capsys.readouterr().out
+        assert "Links:" in out
+        assert "supersedes" in out
+        assert "REQ-001" in out
+
+    def test_show_reverse_links_only(self, workspace: Path, capsys):
+        """L456-460: show reverse links when item has no forward links."""
+        req_add(workspace, "requirement", "V1 Login")
+        req_add(workspace, "requirement", "V2 Login")
+        req_link(workspace, "REQ-002", "supersedes", "REQ-001")
+        capsys.readouterr()
+        # Show REQ-001 which has no forward links but is targeted by REQ-002
+        req_show(workspace, "REQ-001")
+        out = capsys.readouterr().out
+        assert "Links:" in out
+        assert "REQ-002" in out
+        assert "supersedes" in out
+
+    def test_show_doc_not_found(self, workspace: Path, capsys):
+        """L483: doc file missing shows message."""
+        req_add(workspace, "requirement", "R1")
+        # Delete the doc
+        doc = _docs_dir(workspace) / "REQ-001.md"
+        if doc.exists():
+            doc.unlink()
+        capsys.readouterr()
+        req_show(workspace, "REQ-001")
+        out = capsys.readouterr().out
+        assert "not found" in out
+
+
+class TestReqSetEdgeCases:
+    """Cover set edge cases."""
+
+    def test_set_invalid_priority(self, workspace: Path):
+        """L501-502: set with invalid priority."""
+        req_add(workspace, "requirement", "R1")
+        rc = req_set(workspace, "REQ-001", "priority", "P9")
+        assert rc == 1
+
+
+class TestAppendChangelog:
+    """L545: _append_changelog when doc doesn't exist."""
+
+    def test_changelog_no_doc(self, workspace: Path):
+        # _append_changelog should be a no-op when doc doesn't exist
+        _append_changelog(workspace, "REQ-999", "status", "draft", "active")
+        # No error, no file created
+        assert not (_docs_dir(workspace) / "REQ-999.md").exists()
+
+
+class TestReqTraceEdgeCases:
+    """Cover trace edge cases."""
+
+    def test_trace_with_relates_link(self, workspace: Path, capsys):
+        """L670: trace shows non-evolution links (relates, blocks)."""
+        req_add(workspace, "requirement", "R1")
+        req_add(workspace, "requirement", "R2")
+        req_link(workspace, "REQ-001", "relates", "REQ-002")
+        capsys.readouterr()
+        req_trace(workspace, "REQ-001")
+        out = capsys.readouterr().out
+        assert "Other Links:" in out
+        assert "relates" in out
+        assert "REQ-002" in out
+
+
+class TestReqBoardEdgeCases:
+    """Cover board edge cases."""
+
+    def test_board_summary_line(self, workspace: Path, capsys):
+        """L688-692: board summary with done and active counts."""
+        req_add(workspace, "requirement", "R1")
+        req_add(workspace, "requirement", "R2")
+        req_set(workspace, "REQ-001", "status", "done")
+        req_set(workspace, "REQ-002", "status", "active")
+        capsys.readouterr()
+        req_board(workspace)
+        out = capsys.readouterr().out
+        assert "Summary:" in out
+        assert "2 total" in out
+
+
+class TestReqCommentEdgeCases:
+    """Cover comment edge cases."""
+
+    def test_comment_creates_doc_if_missing(self, workspace: Path):
+        """L783-784: comment creates doc when it doesn't exist."""
+        req_add(workspace, "requirement", "R1")
+        doc = _docs_dir(workspace) / "REQ-001.md"
+        if doc.exists():
+            doc.unlink()
+        assert not doc.exists()
+        rc = req_comment(workspace, "REQ-001", "Comment on missing doc")
+        assert rc == 0
+        assert doc.exists()
+        assert "Comment on missing doc" in doc.read_text()
+
+
+class TestTraceBranchingEvolution:
+    """Cover reverse-walk branch in trace forward loop (L647-650)."""
+
+    def test_trace_branching_evolution(self, workspace: Path, capsys):
+        """Two items independently supersede the same item → reverse check fires."""
+        req_add(workspace, "requirement", "Original")
+        req_add(workspace, "requirement", "Fork A")
+        req_add(workspace, "requirement", "Fork B")
+        # Both REQ-002 and REQ-003 supersede REQ-001
+        req_link(workspace, "REQ-002", "supersedes", "REQ-001")
+        req_link(workspace, "REQ-003", "supersedes", "REQ-001")
+        capsys.readouterr()
+        # Trace REQ-002: forward walk reaches REQ-001, then reverse
+        # check should find REQ-003 (not in visited_fwd)
+        rc = req_trace(workspace, "REQ-002")
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "REQ-001" in out
+        assert "REQ-002" in out
+        assert "REQ-003" in out
+
+
+class TestTraceStaleReference:
+    """Cover node-is-None guard in trace (L670)."""
+
+    def test_trace_with_stale_link(self, workspace: Path, capsys):
+        """A link to a deleted item should be handled gracefully."""
+        req_add(workspace, "requirement", "R1")
+        req_add(workspace, "requirement", "R2")
+        req_link(workspace, "REQ-002", "supersedes", "REQ-001")
+        # Manually remove REQ-001 from CSV but keep the link on REQ-002
+        csv = _csv_path(workspace)
+        lines = csv.read_text().splitlines()
+        # Keep header + only REQ-002 row
+        new_lines = [lines[0]] + [l for l in lines[1:] if "REQ-001" not in l.split(",")[0]]
+        csv.write_text("\n".join(new_lines) + "\n")
+        capsys.readouterr()
+        rc = req_trace(workspace, "REQ-002")
+        assert rc == 0

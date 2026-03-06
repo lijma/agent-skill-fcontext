@@ -1,4 +1,5 @@
 """Tests for fcontext experience — list, import, export, remove."""
+import os
 import subprocess
 import zipfile
 from pathlib import Path
@@ -11,7 +12,8 @@ from fcontext.experience import (
     list_experiences, import_experience, export_experience, remove_experience,
     update_experience,
     _is_git_url, _is_download_url, import_experience_git, _export_to_git,
-    _load_ex, _ex_csv_path, _gitignore_path,
+    _load_ex, _ex_csv_path, _gitignore_path, _gitignore_add, _gitignore_remove,
+    _human_size, _record_import,
 )
 
 
@@ -452,6 +454,25 @@ def _make_git_repo_with_fcontext(tmp_path: Path, repo_name: str = "source_repo")
     return repo
 
 
+def _make_git_repo_without_fcontext(tmp_path: Path, repo_name: str = "bare_repo") -> Path:
+    """Helper: create a local git repo with knowledge dirs at root (no .fcontext/ wrapper)."""
+    env = {**os.environ,
+           "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "t@t",
+           "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "t@t"}
+    repo = tmp_path / repo_name
+    repo.mkdir()
+    (repo / "_cache").mkdir(parents=True)
+    (repo / "_topics").mkdir(parents=True)
+    (repo / "_cache" / "doc.md").write_text("# Doc from bare repo")
+    (repo / "_topics" / "notes.md").write_text("# Notes from bare repo")
+    (repo / "_README.md").write_text("# bare_repo\n\nKnowledge without .fcontext wrapper.\n")
+    subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+    subprocess.run(["git", "add", "."], cwd=repo, capture_output=True, check=True)
+    subprocess.run(["git", "commit", "-m", "init knowledge"],
+                    cwd=repo, capture_output=True, check=True, env=env)
+    return repo
+
+
 class TestExperienceImportGit:
     """STORY-008: fcontext experience import from git URL."""
 
@@ -527,6 +548,30 @@ class TestExperienceImportGit:
         exp = workspace / ".fcontext" / "_experiences" / "localdir"
         assert (exp / "_cache" / "spec.md").exists()
         assert (exp / "_topics" / "arch.md").exists()
+
+    def test_import_git_without_fcontext_wrapper(self, workspace: Path, tmp_path: Path):
+        """Repo with knowledge dirs at root (no .fcontext/) should succeed."""
+        repo = _make_git_repo_without_fcontext(tmp_path)
+        rc = import_experience_git(workspace, str(repo), name="bare")
+        assert rc == 0
+        exp = workspace / ".fcontext" / "_experiences" / "bare"
+        assert (exp / "_cache" / "doc.md").exists()
+        assert "Doc from bare repo" in (exp / "_cache" / "doc.md").read_text()
+        assert (exp / "_topics" / "notes.md").exists()
+        assert (exp / "_README.md").exists()
+
+    def test_import_git_prefers_fcontext_over_root(self, workspace: Path, tmp_path: Path):
+        """If .fcontext/ exists, it should be used instead of root-level dirs."""
+        repo = _make_git_repo_with_fcontext(tmp_path, "prefer_fcontext")
+        # Also add root-level knowledge dirs (should be ignored)
+        (repo / "_cache").mkdir(exist_ok=True)
+        (repo / "_cache" / "root_doc.md").write_text("# Root doc")
+        rc = import_experience_git(workspace, str(repo), name="prefer")
+        assert rc == 0
+        exp = workspace / ".fcontext" / "_experiences" / "prefer"
+        # Should have .fcontext/ content, not root content
+        assert (exp / "_cache" / "spec.md").exists()
+        assert not (exp / "_cache" / "root_doc.md").exists()
 
 
 class TestExCsv:
@@ -1033,3 +1078,266 @@ class TestExperienceUpdate:
         row = next(r for r in rows if r["name"] == "keep")
         assert row["source_type"] == "url"
         assert row["source"] == "https://example.com/pack.zip"
+
+
+# ── Coverage gap tests ──────────────────────────────────────────────────
+
+
+class TestGitignoreEdgeCases:
+    """Cover gitignore helper edge cases."""
+
+    def test_gitignore_add_no_trailing_newline(self, workspace: Path):
+        """L101: gitignore file not ending with newline should get one added."""
+        gi = _gitignore_path(workspace)
+        gi.write_text("existing_entry", encoding="utf-8")  # no trailing newline
+        _gitignore_add(workspace, "new_pack")
+        content = gi.read_text(encoding="utf-8")
+        assert "existing_entry\n" in content
+        assert "_experiences/new_pack/" in content
+
+    def test_gitignore_add_creates_file(self, workspace: Path):
+        """L104: gitignore file doesn't exist yet — _gitignore_add creates it."""
+        gi = _gitignore_path(workspace)
+        if gi.exists():
+            gi.unlink()
+        _gitignore_add(workspace, "fresh")
+        assert gi.exists()
+        assert gi.read_text(encoding="utf-8") == "_experiences/fresh/\n"
+
+    def test_gitignore_remove_no_file(self, workspace: Path):
+        """L112: _gitignore_remove when .gitignore doesn't exist is a no-op."""
+        gi = _gitignore_path(workspace)
+        if gi.exists():
+            gi.unlink()
+        _gitignore_remove(workspace, "nonexistent")  # should not raise
+
+
+class TestListEdgeCases:
+    """Cover list_experiences edge cases."""
+
+    def test_list_empty_experiences_dir(self, workspace: Path, capsys):
+        """L129-130: _experiences dir exists but has no subdirs."""
+        exp_dir = workspace / ".fcontext" / "_experiences"
+        exp_dir.mkdir(parents=True, exist_ok=True)
+        # Create a file (not a dir) so iterdir returns something but no dirs
+        (exp_dir / "ex.csv").write_text("name\n")
+        list_experiences(workspace)
+        out = capsys.readouterr().out
+        assert "no experience packs" in out
+
+    def test_list_shows_branch_info(self, workspace: Path, tmp_path: Path, capsys):
+        """L167: list should display branch info when recorded."""
+        repo = _make_git_repo_with_fcontext(tmp_path, "branched_list")
+        subprocess.run(["git", "checkout", "-b", "docs"], cwd=repo,
+                        capture_output=True, check=True)
+        (repo / ".fcontext" / "_topics" / "extra.md").write_text("extra")
+        subprocess.run(["git", "add", "."], cwd=repo, capture_output=True, check=True)
+        subprocess.run(["git", "commit", "-m", "docs branch"], cwd=repo,
+                        capture_output=True, check=True,
+                        env={**os.environ,
+                             "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "t@t",
+                             "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "t@t"})
+        import_experience_git(workspace, str(repo), name="branched_list", branch="docs")
+
+        list_experiences(workspace)
+        out = capsys.readouterr().out
+        assert "branch=docs" in out
+
+
+class TestRemoveEdgeCases:
+    """Cover remove_experience edge cases."""
+
+    def test_remove_nonexistent(self, workspace: Path, capsys):
+        """L181-182: removing a non-existent experience should fail."""
+        rc = remove_experience(workspace, "does_not_exist")
+        assert rc == 1
+        assert "not found" in capsys.readouterr().err
+
+
+class TestUpdateEdgeCases:
+    """Cover update_experience edge cases."""
+
+    def test_update_fails_on_bad_source(self, workspace: Path, capsys):
+        """L238-239: update should report failure when re-import fails."""
+        # Register a git experience with a bad URL
+        exp = workspace / ".fcontext" / "_experiences" / "bad_git"
+        (exp / "_topics").mkdir(parents=True)
+        (exp / "_topics" / "note.md").write_text("content")
+        _record_import(workspace, "bad_git", source_type="git",
+                       source="https://invalid.example/no-repo.git",
+                       branch="", file_count=1)
+
+        rc = update_experience(workspace, name="bad_git")
+        assert rc == 1
+        err = capsys.readouterr().err
+        assert "failed to update" in err
+
+
+class TestImportGitRemoteGitignore:
+    """Cover remote git import adding gitignore entry through actual flow."""
+
+    def test_remote_git_import_actual_gitignore(self, workspace: Path, tmp_path: Path):
+        """L408: importing from a non-local git URL should add .gitignore entry.
+
+        We mock _is_local_git_repo to return False so the function treats it as remote.
+        """
+        repo = _make_git_repo_with_fcontext(tmp_path)
+        with patch("fcontext.experience._is_local_git_repo", return_value=False):
+            rc = import_experience_git(workspace, str(repo), name="remote_sim")
+        assert rc == 0
+        gi = _gitignore_path(workspace)
+        content = gi.read_text(encoding="utf-8")
+        assert "_experiences/remote_sim/" in content
+
+        # Also check ex.csv records source_type as "git" (not "local-git")
+        rows = _load_ex(workspace)
+        row = next(r for r in rows if r["name"] == "remote_sim")
+        assert row["source_type"] == "git"
+
+
+class TestZipDirectoryEntries:
+    """Cover zip import with directory entries."""
+
+    def test_zip_with_directory_entries(self, workspace: Path, tmp_path: Path):
+        """L460: zip members that are directories should be skipped gracefully."""
+        zip_path = tmp_path / "with_dirs.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            # Add a directory entry explicitly
+            zf.mkdir("_cache/")
+            zf.writestr("_cache/doc.md", "# Doc")
+            zf.mkdir("_topics/")
+            zf.writestr("_topics/note.md", "# Note")
+        rc = import_experience(workspace, str(zip_path), name="dirzip")
+        assert rc == 0
+        exp = workspace / ".fcontext" / "_experiences" / "dirzip"
+        assert (exp / "_cache" / "doc.md").exists()
+        assert (exp / "_topics" / "note.md").exists()
+
+
+class TestExportEdgeCases:
+    """Cover export edge cases."""
+
+    def test_export_dispatches_to_git_url(self, workspace: Path, tmp_path: Path):
+        """L545: export_experience should dispatch to _export_to_git for git URLs."""
+        (workspace / ".fcontext" / "_topics" / "note.md").write_text("note")
+        # Use a git-style URL so _is_git_url returns True
+        with patch("fcontext.experience._export_to_git", return_value=0) as mock_git:
+            rc = export_experience(workspace, "git@github.com:org/repo.git")
+        assert rc == 0
+        mock_git.assert_called_once()
+
+    def test_export_to_non_zip_suffix(self, workspace: Path, tmp_path: Path):
+        """L560: export to a file with non-.zip suffix should append .zip."""
+        (workspace / ".fcontext" / "_topics" / "note.md").write_text("note")
+        out = tmp_path / "export.tar"
+        rc = export_experience(workspace, str(out))
+        assert rc == 0
+        expected = tmp_path / "export.tar.zip"
+        assert expected.exists()
+
+    def test_export_git_no_project_readme(self, workspace: Path, tmp_path: Path):
+        """L655: when project _README.md doesn't exist, use generated readme."""
+        (workspace / ".fcontext" / "_topics" / "note.md").write_text("note")
+        # Remove project _README.md
+        project_readme = workspace / ".fcontext" / "_README.md"
+        if project_readme.exists():
+            project_readme.unlink()
+
+        bare = tmp_path / "remote.git"
+        subprocess.run(["git", "init", "--bare", str(bare)],
+                       capture_output=True, check=True)
+        rc = _export_to_git(workspace, str(bare))
+        assert rc == 0
+
+        # Verify top-level README.md was created with generated content
+        clone_dir = tmp_path / "verify"
+        subprocess.run(["git", "clone", "-b", "main", str(bare), str(clone_dir)],
+                       capture_output=True, check=True)
+        assert (clone_dir / "README.md").exists()
+        assert "fcontext export" in (clone_dir / "README.md").read_text()
+
+
+class TestExportGitFailures:
+    """Cover git export failure paths."""
+
+    def test_export_git_init_fails(self, workspace: Path, tmp_path: Path, capsys):
+        """L626-628: git init failure should be reported."""
+        (workspace / ".fcontext" / "_topics" / "note.md").write_text("note")
+        # Use a URL that can't be cloned (triggering the init path)
+        # Then mock git init to fail
+        bad_url = "https://invalid.example/no-repo.git"
+        with patch("subprocess.run") as mock_run:
+            # First call: clone fails; second call: init fails
+            clone_fail = MagicMock(returncode=128, stderr="clone failed")
+            init_fail = MagicMock(returncode=1, stderr="init failed")
+            mock_run.side_effect = [clone_fail, init_fail]
+            rc = _export_to_git(workspace, bad_url)
+        assert rc == 1
+        assert "git init failed" in capsys.readouterr().err
+
+    def test_export_git_remote_add_fails(self, workspace: Path, tmp_path: Path, capsys):
+        """L633-635: git remote add failure should be reported."""
+        (workspace / ".fcontext" / "_topics" / "note.md").write_text("note")
+        bad_url = "https://invalid.example/no-repo.git"
+        with patch("subprocess.run") as mock_run:
+            clone_fail = MagicMock(returncode=128, stderr="clone failed")
+            init_ok = MagicMock(returncode=0)
+            remote_fail = MagicMock(returncode=1, stderr="remote add failed")
+            mock_run.side_effect = [clone_fail, init_ok, remote_fail]
+            rc = _export_to_git(workspace, bad_url)
+        assert rc == 1
+        assert "git remote add failed" in capsys.readouterr().err
+
+    def test_export_git_commit_fails(self, workspace: Path, tmp_path: Path, capsys):
+        """L674-676: git commit failure should be reported."""
+        (workspace / ".fcontext" / "_topics" / "note.md").write_text("note")
+        bad_url = "https://invalid.example/no-repo.git"
+        with patch("subprocess.run") as mock_run:
+            clone_fail = MagicMock(returncode=128, stderr="clone failed")
+            init_ok = MagicMock(returncode=0)
+            remote_ok = MagicMock(returncode=0)
+            add_ok = MagicMock(returncode=0)  # git add
+            diff_has_changes = MagicMock(returncode=1)  # diff --cached shows changes
+            commit_fail = MagicMock(returncode=1, stderr="commit failed")
+            mock_run.side_effect = [clone_fail, init_ok, remote_ok, add_ok,
+                                    diff_has_changes, commit_fail]
+            rc = _export_to_git(workspace, bad_url)
+        assert rc == 1
+        assert "git commit failed" in capsys.readouterr().err
+
+
+class TestHumanSize:
+    """Cover _human_size edge cases."""
+
+    def test_bytes(self):
+        assert _human_size(100) == "100 B"
+
+    def test_kb(self):
+        assert "KB" in _human_size(2048)
+
+    def test_mb(self):
+        assert "MB" in _human_size(2 * 1024 * 1024)
+
+    def test_gb(self):
+        assert "GB" in _human_size(2 * 1024 ** 3)
+
+    def test_tb(self):
+        """L740-741: very large sizes should show TB."""
+        assert "TB" in _human_size(2 * 1024 ** 4)
+
+
+class TestCollectKnowledgeEdgeCases:
+    """Cover _collect_knowledge edge cases."""
+
+    def test_collect_skips_missing_knowledge_dirs(self, workspace: Path, tmp_path: Path):
+        """L505: knowledge dir path that is not a dir should be skipped."""
+        # Workspace with _topics/ as a file instead of a dir should not crash export
+        topics = workspace / ".fcontext" / "_topics"
+        if topics.is_dir():
+            import shutil
+            shutil.rmtree(topics)
+        # Create _cache with content so export is not empty
+        (workspace / ".fcontext" / "_cache" / "doc.md").write_text("content")
+        out_zip = tmp_path / "export.zip"
+        rc = export_experience(workspace, str(out_zip))
+        assert rc == 0

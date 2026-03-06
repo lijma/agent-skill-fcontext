@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fcontext"
-version = "1.0.0"
+version = "1.0.1"
 description = "Context continuity across AI agents & sessions. Team knowledge collaboration. Industrial-grade AI delivery."
 readme = "README.md"
 requires-python = ">=3.9"

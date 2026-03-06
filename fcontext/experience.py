@@ -362,19 +362,20 @@ def import_experience_git(root: Path, url: str, name: str | None = None,
             print(f"error: git clone failed: {err}", file=sys.stderr)
             return 1
 
-        # Locate .fcontext/ in cloned repo
+        # Locate knowledge source in cloned repo:
+        # prefer .fcontext/ if it exists, otherwise use repo root directly
         fcontext_dir = clone_dir / ".fcontext"
-        if not fcontext_dir.is_dir():
-            print("error: cloned repo has no .fcontext/ directory",
-                  file=sys.stderr)
-            return 1
+        if fcontext_dir.is_dir():
+            knowledge_src = fcontext_dir
+        else:
+            knowledge_src = clone_dir
 
         # Check for knowledge content
-        has_knowledge = any((fcontext_dir / kd).is_dir() and
-                            any((fcontext_dir / kd).iterdir())
+        has_knowledge = any((knowledge_src / kd).is_dir() and
+                            any((knowledge_src / kd).iterdir())
                             for kd in KNOWLEDGE_DIRS)
         if not has_knowledge:
-            print(f"error: .fcontext/ contains no knowledge directories "
+            print(f"error: repo contains no knowledge directories "
                   f"({', '.join(KNOWLEDGE_DIRS)})",
                   file=sys.stderr)
             return 1
@@ -387,12 +388,12 @@ def import_experience_git(root: Path, url: str, name: str | None = None,
         # Copy knowledge dirs and _README.md
         extracted = 0
         for kd in KNOWLEDGE_DIRS:
-            src = fcontext_dir / kd
+            src = knowledge_src / kd
             if src.is_dir():
                 shutil.copytree(src, target / kd)
                 extracted += sum(1 for _ in (target / kd).rglob("*") if _.is_file())
 
-        readme_src = fcontext_dir / README_NAME
+        readme_src = knowledge_src / README_NAME
         if readme_src.exists():
             shutil.copy2(readme_src, target / README_NAME)
             extracted += 1

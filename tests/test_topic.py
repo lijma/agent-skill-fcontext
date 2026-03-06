@@ -1,6 +1,7 @@
 """Tests for fcontext topic."""
+import shutil
 from pathlib import Path
-from fcontext.topics import topic_list, topic_show, topic_clean
+from fcontext.topics import topic_list, topic_show, topic_clean, _human_size
 
 
 class TestTopicList:
@@ -10,6 +11,15 @@ class TestTopicList:
         rc = topic_list(workspace)
         assert rc == 0
         assert "no topics" in capsys.readouterr().out
+
+    def test_list_no_topics_dir(self, workspace: Path, capsys):
+        """L17-18: _topics dir doesn't exist."""
+        topics = workspace / ".fcontext" / "_topics"
+        if topics.is_dir():
+            shutil.rmtree(topics)
+        rc = topic_list(workspace)
+        assert rc == 0
+        assert "no _topics/ directory" in capsys.readouterr().out
 
     def test_list_shows_files(self, workspace: Path, capsys):
         topics = workspace / ".fcontext" / "_topics"
@@ -80,3 +90,28 @@ class TestTopicClean:
         topic_clean(workspace)
         out = capsys.readouterr().out
         assert "nothing to clean" in out
+
+    def test_clean_no_topics_dir(self, workspace: Path, capsys):
+        """L84-85: topic_clean on workspace without _topics/."""
+        topics = workspace / ".fcontext" / "_topics"
+        if topics.is_dir():
+            shutil.rmtree(topics)
+        rc = topic_clean(workspace)
+        assert rc == 0
+        assert "no _topics/ directory" in capsys.readouterr().out
+
+
+class TestTopicHumanSize:
+    """Cover _human_size branches."""
+
+    def test_bytes(self):
+        assert _human_size(500) == "500 B"
+
+    def test_kb(self):
+        result = _human_size(2048)
+        assert "KB" in result
+
+    def test_mb(self):
+        """L107-110: MB branch."""
+        result = _human_size(2 * 1024 * 1024)
+        assert "MB" in result

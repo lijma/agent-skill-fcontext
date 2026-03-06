@@ -1202,10 +1202,10 @@ class TestZipDirectoryEntries:
         """L460: zip members that are directories should be skipped gracefully."""
         zip_path = tmp_path / "with_dirs.zip"
         with zipfile.ZipFile(zip_path, "w") as zf:
-            # Add a directory entry explicitly
-            zf.mkdir("_cache/")
+            # Add directory entries (compatible with Python < 3.12)
+            zf.writestr(zipfile.ZipInfo("_cache/"), "")
             zf.writestr("_cache/doc.md", "# Doc")
-            zf.mkdir("_topics/")
+            zf.writestr(zipfile.ZipInfo("_topics/"), "")
             zf.writestr("_topics/note.md", "# Note")
         rc = import_experience(workspace, str(zip_path), name="dirzip")
         assert rc == 0

@@ -70,6 +70,20 @@ class TestEnable:
             skill = skills_dir / name / "SKILL.md"
             assert skill.exists(), f"{name}/SKILL.md missing"
 
+    def test_enable_qwen(self, workspace: Path):
+        rc = enable_agent(workspace, "qwen")
+        assert rc == 0
+        # Rules file
+        rules = workspace / ".qwen" / "rules" / "fcontext.md"
+        assert rules.exists()
+        assert "Workflow Rules" in rules.read_text()
+        # Skills
+        skills_dir = workspace / ".qwen" / "skills"
+        for name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
+            skill = skills_dir / name / "SKILL.md"
+            assert skill.exists(), f"{name}/SKILL.md missing"
+            assert f"name: {name}" in skill.read_text()
+
     def test_enable_opencode_is_claude_alias(self, workspace: Path):
         rc = enable_agent(workspace, "opencode")
         assert rc == 0

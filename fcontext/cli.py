@@ -3,7 +3,7 @@
 
 Usage:
     fcontext init              Initialize .fcontext/ in current workspace
-    fcontext enable <agent>    Activate an AI agent (copilot/claude/cursor/trae/opencode/openclaw)
+    fcontext enable <agent>    Activate an AI agent (copilot/claude/cursor/trae/qwen/opencode/openclaw)
     fcontext index             Scan & convert binary files to Markdown
     fcontext status            Show index statistics
     fcontext clean             Clear all cached files and reset index
@@ -281,8 +281,8 @@ def main(argv: list[str] | None = None) -> int:
     p_init.set_defaults(func=cmd_init)
 
     # --- enable ---
-    p_enable = sub.add_parser("enable", help="Activate an AI agent (copilot/claude/cursor/trae/opencode/openclaw)")
-    p_enable.add_argument("agent", help="Agent name: copilot, claude, cursor, trae, opencode, openclaw (or 'list' to show status)")
+    p_enable = sub.add_parser("enable", help="Activate an AI agent (copilot/claude/cursor/trae/qwen/opencode/openclaw)")
+    p_enable.add_argument("agent", help="Agent name: copilot, claude, cursor, trae, qwen, opencode, openclaw (or 'list' to show status)")
     p_enable.add_argument("-f", "--force", action="store_true", help="Overwrite existing agent config")
     p_enable.set_defaults(func=cmd_enable)
 

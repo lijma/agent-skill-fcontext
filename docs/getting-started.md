@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Python 3.9+
-- An AI coding agent (Copilot, Claude Code, Cursor, Trae, etc.)
+- An AI coding agent (Copilot, Claude Code, Cursor, Trae, Qwen-Code, etc.)
 
 ## Install
 
@@ -37,7 +37,7 @@ This creates `.fcontext/` with:
 ### 2. Enable your AI agent
 
 ```bash
-fcontext enable copilot    # or: claude, cursor, trae, opencode, openclaw
+fcontext enable copilot    # or: claude, cursor, trae, qwen, opencode, openclaw
 ```
 
 Your agent now knows to read `.fcontext/` on every session.

@@ -136,7 +136,7 @@ pip install fcontext
 
 cd your-project
 fcontext init
-fcontext enable copilot    # or: claude, cursor, trae, opencode
+fcontext enable copilot    # or: claude, cursor, trae, qwen, opencode, openclaw
 fcontext index docs/
 ```
 
@@ -152,6 +152,7 @@ Your AI agent now reads project context automatically on every session.
 | Claude Code | `fcontext enable claude` |
 | Cursor | `fcontext enable cursor` |
 | Trae | `fcontext enable trae` |
+| Qwen-Code | `fcontext enable qwen` |
 | OpenCode | `fcontext enable opencode` |
 | OpenClaw | `fcontext enable openclaw` |
 

@@ -119,7 +119,7 @@ After gaining significant new understanding about the project (domain concepts, 
 
 ```
 fcontext init                         # initialize .fcontext/
-fcontext enable <agent>               # activate agent (copilot/claude/cursor/trae/opencode)
+fcontext enable <agent>               # activate agent (copilot/claude/cursor/trae/qwen/opencode)
 fcontext status                       # index statistics
 fcontext clean                        # clear cache
 fcontext reset                        # delete all .fcontext/ data
@@ -261,6 +261,7 @@ fcontext topic clean                  # remove empty topic files
 #   Claude   →  .claude/rules/fcontext.md  + .claude/skills/*/SKILL.md
 #   Cursor   →  .cursor/rules/fcontext.md  + .cursor/skills/*/SKILL.md
 #   Trae     →  .trae/rules/fcontext.md    + .trae/skills/*/SKILL.md
+#   Qwen-Code→  .qwen/rules/fcontext.md    + .qwen/skills/*/SKILL.md
 #   OpenCode →  alias for claude (.claude/)
 #   OpenClaw →  skills/ only (no rules, personal AI assistant)
 
@@ -324,7 +325,7 @@ Always check these BEFORE searching source files:
 - **NEVER modify** anything under `_experiences/` — it is read-only imported knowledge
 """
 
-# Rules content for agents that use a rules/ directory (claude, cursor, trae).
+# Rules content for agents that use a rules/ directory (claude, cursor, trae, qwen).
 # Same content as COPILOT_INSTRUCTIONS but without the YAML frontmatter wrapper.
 AGENT_RULES_BODY = """# fcontext
 
@@ -398,6 +399,11 @@ AGENT_CONFIGS = {
         "rules_path": ".trae/rules/fcontext.md",
         "skills_dir": ".trae/skills",
         "detect": ".trae",
+    },
+    "qwen": {
+        "rules_path": ".qwen/rules/fcontext.md",
+        "skills_dir": ".qwen/skills",
+        "detect": ".qwen",
     },
     "opencode": {
         "alias": "claude",

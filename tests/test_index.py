@@ -309,6 +309,42 @@ class TestLoadIndexExisting:
         assert data == {}
 
 
+class TestConvertFileSuccess:
+    """Cover _convert_file success path (L94-100)."""
+
+    def test_convert_file_success(self, tmp_path: Path):
+        import sys
+        from unittest.mock import MagicMock
+
+        source = tmp_path / "doc.pdf"
+        source.write_bytes(b"%PDF-1.4 content")
+        cache_path = tmp_path / "output.md"
+
+        # Create a fake markitdown module with MarkItDown class
+        fake_result = MagicMock()
+        fake_result.text_content = "Converted text"
+        fake_converter = MagicMock()
+        fake_converter.convert.return_value = fake_result
+        fake_module = MagicMock()
+        fake_module.MarkItDown.return_value = fake_converter
+
+        real_mod = sys.modules.get("markitdown")
+        try:
+            sys.modules["markitdown"] = fake_module
+            result = _convert_file(source, cache_path, "doc.pdf")
+        finally:
+            if real_mod is not None:
+                sys.modules["markitdown"] = real_mod
+            else:
+                sys.modules.pop("markitdown", None)
+
+        assert result is True
+        assert cache_path.exists()
+        content = cache_path.read_text()
+        assert "<!-- source: doc.pdf -->" in content
+        assert "Converted text" in content
+
+
 class TestConvertFileError:
     """Cover _convert_file failure path (L101-103)."""
 

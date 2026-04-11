@@ -56,7 +56,7 @@ CSV_COLUMNS = [
 VALID_PARENT = {
     "epic": {"roadmap"},
     "requirement": {"epic", "roadmap"},
-    "story": {"requirement"},
+    "story": {"requirement", "epic"},
     "task": {"requirement", "story"},
     "bug": {"requirement", "story"},
 }
@@ -506,6 +506,17 @@ def req_set(root: Path, item_id: str, field: str, value: str) -> int:
     if item is None:
         print(f"error: '{item_id}' not found", file=sys.stderr)
         return 1
+
+    if field == "parent" and value:
+        new_parent = _find_item(items, value)
+        if new_parent is None:
+            print(f"error: parent '{value}' not found", file=sys.stderr)
+            return 1
+        allowed = VALID_PARENT.get(item["type"], set())
+        if new_parent["type"] not in allowed:
+            print(f"error: {item['type']} cannot be a child of {new_parent['type']}. "
+                  f"Allowed parents: {', '.join(allowed) if allowed else 'none'}", file=sys.stderr)
+            return 1
 
     old_value = item.get(field, "")
     item[field] = value

@@ -68,6 +68,15 @@ class TestReqAdd:
         story = _find_item(items, "STORY-001")
         assert story["parent"] == "REQ-001"
 
+    def test_add_story_under_epic(self, workspace: Path):
+        """STORY-016: story can be placed directly under an EPIC."""
+        req_add(workspace, "epic", "Parent Epic")
+        rc = req_add(workspace, "story", "Direct Epic Story", parent="EPIC-001")
+        assert rc == 0
+        items = _load_items(workspace)
+        story = _find_item(items, "STORY-001")
+        assert story["parent"] == "EPIC-001"
+
     def test_add_task_under_story(self, workspace: Path):
         req_add(workspace, "story", "A Story")
         rc = req_add(workspace, "task", "Sub task", parent="STORY-001")
@@ -215,6 +224,15 @@ class TestReqTree:
         assert "ROAD-001" in out
         assert "EPIC-001" in out
         assert "REQ-001" in out
+
+    def test_tree_story_directly_under_epic(self, workspace: Path, capsys):
+        """STORY-016: story under epic renders in tree without intermediate REQ."""
+        req_add(workspace, "epic", "Ep")
+        req_add(workspace, "story", "Direct Story", parent="EPIC-001")
+        req_tree(workspace)
+        out = capsys.readouterr().out
+        assert "EPIC-001" in out
+        assert "STORY-001" in out
 
 
 class TestReqComment:
@@ -581,6 +599,41 @@ class TestReqSetEdgeCases:
         """L501-502: set with invalid priority."""
         req_add(workspace, "requirement", "R1")
         rc = req_set(workspace, "REQ-001", "priority", "P9")
+        assert rc == 1
+
+    def test_set_parent_story_to_epic(self, workspace: Path):
+        """STORY-017: assign existing story to a new EPIC."""
+        req_add(workspace, "epic", "Epic A")
+        req_add(workspace, "epic", "Epic B")
+        req_add(workspace, "story", "My Story", parent="EPIC-001")
+        rc = req_set(workspace, "STORY-001", "parent", "EPIC-002")
+        assert rc == 0
+        items = _load_items(workspace)
+        story = _find_item(items, "STORY-001")
+        assert story["parent"] == "EPIC-002"
+
+    def test_set_parent_story_to_requirement(self, workspace: Path):
+        """STORY-017: assign existing story to a requirement."""
+        req_add(workspace, "epic", "Epic")
+        req_add(workspace, "requirement", "Req", parent="EPIC-001")
+        req_add(workspace, "story", "My Story", parent="EPIC-001")
+        rc = req_set(workspace, "STORY-001", "parent", "REQ-001")
+        assert rc == 0
+        items = _load_items(workspace)
+        story = _find_item(items, "STORY-001")
+        assert story["parent"] == "REQ-001"
+
+    def test_set_parent_invalid_hierarchy(self, workspace: Path):
+        """Cannot assign story under a roadmap."""
+        req_add(workspace, "roadmap", "Road")
+        req_add(workspace, "story", "My Story")
+        rc = req_set(workspace, "STORY-001", "parent", "ROAD-001")
+        assert rc == 1
+
+    def test_set_parent_not_found(self, workspace: Path):
+        """Setting parent to nonexistent ID returns error."""
+        req_add(workspace, "story", "My Story")
+        rc = req_set(workspace, "STORY-001", "parent", "EPIC-999")
         assert rc == 1
 
 

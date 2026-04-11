@@ -1,2 +1,5 @@
 """fcontext — Make any workspace AI-ready."""
-__version__ = "1.0.1"
+try:
+    from fcontext._version import version as __version__
+except ImportError:
+    __version__ = "0.0.0+unknown"

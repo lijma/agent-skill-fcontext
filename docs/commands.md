@@ -20,6 +20,7 @@ fcontext enable claude     # .claude/rules/fcontext.md
 fcontext enable cursor     # .cursor/rules/fcontext.md
 fcontext enable trae       # .trae/rules/fcontext.md
 fcontext enable qwen       # .qwen/rules/fcontext.md
+fcontext enable kiro       # .kiro/steering/fcontext.md
 fcontext enable opencode   # Claude format
 fcontext enable openclaw   # skills/ only
 ```

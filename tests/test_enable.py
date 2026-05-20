@@ -84,6 +84,20 @@ class TestEnable:
             assert skill.exists(), f"{name}/SKILL.md missing"
             assert f"name: {name}" in skill.read_text()
 
+    def test_enable_kiro(self, workspace: Path):
+        rc = enable_agent(workspace, "kiro")
+        assert rc == 0
+        # Rules file in .kiro/steering/
+        rules = workspace / ".kiro" / "steering" / "fcontext.md"
+        assert rules.exists()
+        assert "Workflow Rules" in rules.read_text()
+        # Skills
+        skills_dir = workspace / ".kiro" / "skills"
+        for name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
+            skill = skills_dir / name / "SKILL.md"
+            assert skill.exists(), f"{name}/SKILL.md missing"
+            assert f"name: {name}" in skill.read_text()
+
     def test_enable_opencode_is_claude_alias(self, workspace: Path):
         rc = enable_agent(workspace, "opencode")
         assert rc == 0

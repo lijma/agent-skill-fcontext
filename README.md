@@ -5,7 +5,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/fcontext?style=for-the-badge)](https://pypi.org/project/fcontext/)
 [![Python](https://img.shields.io/pypi/pyversions/fcontext?style=for-the-badge)](https://pypi.org/project/fcontext/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-7%20supported-green?style=for-the-badge)](#supported-agents)
+[![Agents](https://img.shields.io/badge/agents-8%20supported-green?style=for-the-badge)](#supported-agents)
 
 ---
 
@@ -84,6 +84,7 @@ In production environments, context is fragmented: requirements live in document
 | Cursor | `fcontext enable cursor` | `.cursor/rules/*.md` |
 | Trae | `fcontext enable trae` | `.trae/rules/*.md` |
 | Qwen-Code | `fcontext enable qwen` | `.qwen/rules/*.md` |
+| Kiro | `fcontext enable kiro` | `.kiro/steering/*.md` + `.kiro/skills/` |
 | OpenCode | `fcontext enable opencode` | Uses Claude format |
 | OpenClaw | `fcontext enable openclaw` | `skills/` only |
 
@@ -119,7 +120,7 @@ cd your-project
 fcontext init
 
 # 2. Activate your AI agent
-fcontext enable copilot    # or: claude, cursor, trae, qwen, opencode, openclaw
+fcontext enable copilot    # or: claude, cursor, trae, qwen, kiro, opencode, openclaw
 
 # 3. Index your documents
 fcontext index docs/

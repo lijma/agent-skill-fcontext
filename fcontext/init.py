@@ -262,6 +262,7 @@ fcontext topic clean                  # remove empty topic files
 #   Cursor   →  .cursor/rules/fcontext.md  + .cursor/skills/*/SKILL.md
 #   Trae     →  .trae/rules/fcontext.md    + .trae/skills/*/SKILL.md
 #   Qwen-Code→  .qwen/rules/fcontext.md    + .qwen/skills/*/SKILL.md
+#   Kiro     →  .kiro/steering/fcontext.md + .kiro/skills/*/SKILL.md
 #   OpenCode →  alias for claude (.claude/)
 #   OpenClaw →  skills/ only (no rules, personal AI assistant)
 
@@ -404,6 +405,11 @@ AGENT_CONFIGS = {
         "rules_path": ".qwen/rules/fcontext.md",
         "skills_dir": ".qwen/skills",
         "detect": ".qwen",
+    },
+    "kiro": {
+        "rules_path": ".kiro/steering/fcontext.md",
+        "skills_dir": ".kiro/skills",
+        "detect": ".kiro",
     },
     "opencode": {
         "alias": "claude",

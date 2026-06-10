@@ -428,15 +428,24 @@ class TestVersionFallback:
                 raise ImportError("No _version")
             return real_import(name, *args, **kwargs)
 
-        for key in list(sys.modules):
-            if key.startswith("fcontext"):
-                del sys.modules[key]
+        saved_modules = dict(sys.modules)
+        try:
+            for key in list(sys.modules):
+                if key.startswith("fcontext"):
+                    del sys.modules[key]
 
-        with patch("builtins.__import__", side_effect=mock_import):
-            import importlib
-            import fcontext
-            importlib.reload(fcontext)
-            assert fcontext.__version__ == "0.0.0+unknown"
+            with patch("builtins.__import__", side_effect=mock_import):
+                import importlib
+                import fcontext
+                importlib.reload(fcontext)
+                assert fcontext.__version__ == "0.0.0+unknown"
+        finally:
+            for key in list(sys.modules):
+                if key.startswith("fcontext"):
+                    del sys.modules[key]
+            for key, mod in saved_modules.items():
+                if key.startswith("fcontext"):
+                    sys.modules[key] = mod
 
     def test_enable_antigravity(self, workspace: Path):
         os.chdir(workspace)

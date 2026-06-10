@@ -1,7 +1,9 @@
 """Tests for fcontext reset."""
+
 from pathlib import Path
 from unittest.mock import patch
-from fcontext.init import init_workspace, enable_agent
+
+from fcontext.init import enable_agent, init_workspace
 
 
 class TestReset:
@@ -10,7 +12,9 @@ class TestReset:
     def _do_reset(self, root: Path, inputs: list[str]) -> int:
         """Run cmd_reset with mocked input()."""
         import argparse
+
         from fcontext.cli import cmd_reset
+
         args = argparse.Namespace(dir=str(root))
         with patch("builtins.input", side_effect=inputs):
             return cmd_reset(args)
@@ -22,7 +26,9 @@ class TestReset:
 
     def test_reset_removes_agent_files(self, workspace: Path):
         enable_agent(workspace, "copilot")
-        instructions = workspace / ".github" / "instructions" / "fcontext.instructions.md"
+        instructions = (
+            workspace / ".github" / "instructions" / "fcontext.instructions.md"
+        )
         assert instructions.exists()
         skills_dir = workspace / ".github" / "skills"
         for name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
@@ -30,6 +36,26 @@ class TestReset:
         rc = self._do_reset(workspace, ["yes", "reset"])
         assert rc == 0
         assert not instructions.exists()
+        for name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
+            assert not (skills_dir / name / "SKILL.md").exists()
+
+    def test_reset_removes_zed_files(self, workspace: Path):
+        enable_agent(workspace, "zed")
+        skills_dir = workspace / ".agents" / "skills"
+        for name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
+            assert (skills_dir / name / "SKILL.md").exists()
+        rc = self._do_reset(workspace, ["yes", "reset"])
+        assert rc == 0
+        for name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
+            assert not (skills_dir / name / "SKILL.md").exists()
+
+    def test_reset_removes_pi_files(self, workspace: Path):
+        enable_agent(workspace, "pi")
+        skills_dir = workspace / ".pi" / "skills"
+        for name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
+            assert (skills_dir / name / "SKILL.md").exists()
+        rc = self._do_reset(workspace, ["yes", "reset"])
+        assert rc == 0
         for name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
             assert not (skills_dir / name / "SKILL.md").exists()
 

@@ -29,6 +29,8 @@ fcontext enable trae       # .trae/rules/*.md
 fcontext enable kiro       # .kiro/steering/*.md
 fcontext enable opencode   # uses Claude format
 fcontext enable openclaw   # skills/ only
+fcontext enable zed        # .agents/skills/*/SKILL.md
+fcontext enable pi         # .pi/skills/*/SKILL.md
 ```
 
 All agents share the same `.fcontext/` data — switch freely without losing context.

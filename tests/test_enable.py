@@ -1,6 +1,8 @@
 """Tests for fcontext enable."""
+
 from pathlib import Path
-from fcontext.init import init_workspace, enable_agent, list_agents
+
+from fcontext.init import enable_agent, init_workspace, list_agents
 
 
 class TestEnable:
@@ -23,9 +25,16 @@ class TestEnable:
             assert skill.exists(), f"{name}/SKILL.md missing"
             assert f"name: {name}" in skill.read_text()
         # Spot-check content
-        assert "fcontext index" in (skills_dir / "fcontext-index" / "SKILL.md").read_text()
-        assert "fcontext req list" in (skills_dir / "fcontext-req" / "SKILL.md").read_text()
-        assert "fcontext topic" in (skills_dir / "fcontext-topic" / "SKILL.md").read_text()
+        assert (
+            "fcontext index" in (skills_dir / "fcontext-index" / "SKILL.md").read_text()
+        )
+        assert (
+            "fcontext req list"
+            in (skills_dir / "fcontext-req" / "SKILL.md").read_text()
+        )
+        assert (
+            "fcontext topic" in (skills_dir / "fcontext-topic" / "SKILL.md").read_text()
+        )
 
     def test_enable_claude(self, workspace: Path):
         rc = enable_agent(workspace, "claude")
@@ -119,6 +128,43 @@ class TestEnable:
         # No rules file anywhere
         assert not (workspace / "rules").exists()
         assert not (workspace / ".openclaw").exists()
+
+    def test_enable_zed(self, workspace: Path):
+        rc = enable_agent(workspace, "zed")
+        assert rc == 0
+        # Skills-only agent, skills in .agents/skills/
+        skills_dir = workspace / ".agents" / "skills"
+        for name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
+            skill = skills_dir / name / "SKILL.md"
+            assert skill.exists(), f"{name}/SKILL.md missing"
+            assert f"name: {name}" in skill.read_text()
+        # No rules file (skills-only agent)
+        assert not (workspace / ".zed").exists()
+
+    def test_enable_pi(self, workspace: Path):
+        rc = enable_agent(workspace, "pi")
+        assert rc == 0
+        # Skills-only agent, skills in .pi/skills/
+        skills_dir = workspace / ".pi" / "skills"
+        for name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
+            skill = skills_dir / name / "SKILL.md"
+            assert skill.exists(), f"{name}/SKILL.md missing"
+            assert f"name: {name}" in skill.read_text()
+        # No rules file (skills-only agent)
+        assert not (workspace / ".pi" / "rules").exists()
+
+    def test_enable_zed_and_pi_share_agents_dir(self, workspace: Path):
+        """Enable zed then pi: both .agents/skills/ and .pi/skills/ exist."""
+        enable_agent(workspace, "zed")
+        enable_agent(workspace, "pi")
+        # Zed's .agents/skills/ still exists
+        agents_skills = workspace / ".agents" / "skills"
+        for name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
+            assert (agents_skills / name / "SKILL.md").exists()
+        # Pi's .pi/skills/ also exists
+        pi_skills = workspace / ".pi" / "skills"
+        for name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
+            assert (pi_skills / name / "SKILL.md").exists()
 
     def test_enable_unknown_agent(self, workspace: Path):
         rc = enable_agent(workspace, "unknown_agent")

@@ -1,4 +1,5 @@
 """fcontext init — initialize .fcontext/ in a workspace."""
+
 from __future__ import annotations
 
 import sys
@@ -265,6 +266,8 @@ fcontext topic clean                  # remove empty topic files
 #   Kiro     →  .kiro/steering/fcontext.md + .kiro/skills/*/SKILL.md
 #   OpenCode →  alias for claude (.claude/)
 #   OpenClaw →  skills/ only (no rules, personal AI assistant)
+#   Zed      →  .agents/skills/*/SKILL.md  (skills-only, Agent Skills standard)
+#   Pi       →  .pi/skills/*/SKILL.md      (skills-only, also reads .agents/skills/)
 
 # Minimal always-on instructions for Copilot (just the lookup order)
 COPILOT_INSTRUCTIONS = """\
@@ -418,6 +421,14 @@ AGENT_CONFIGS = {
         "skills_dir": "skills",
         "detect": "skills",
     },
+    "zed": {
+        "skills_dir": ".agents/skills",
+        "detect": ".agents",
+    },
+    "pi": {
+        "skills_dir": ".pi/skills",
+        "detect": ".pi",
+    },
 }
 
 
@@ -446,7 +457,13 @@ def init_workspace(root: Path, force: bool = False) -> int:
     ctx = root / ".fcontext"
 
     # 1. Create directory structure
-    for d in [ctx, ctx / "_cache", ctx / "_topics", ctx / "_requirements", ctx / "_requirements" / "docs"]:
+    for d in [
+        ctx,
+        ctx / "_cache",
+        ctx / "_topics",
+        ctx / "_requirements",
+        ctx / "_requirements" / "docs",
+    ]:
         d.mkdir(parents=True, exist_ok=True)
 
     # 2. Create .gitignore
@@ -477,10 +494,12 @@ def init_workspace(root: Path, force: bool = False) -> int:
 
     # 3b. Create _requirements/items.csv
     from .requirements import req_init
+
     req_init(root)
 
     # 4. Generate workspace map
     from .workspace_map import generate_workspace_map
+
     ws_map = ctx / "_workspace.map"
     print(f"  scan   workspace structure ...")
     ws_map.write_text(generate_workspace_map(root), encoding="utf-8")
@@ -504,7 +523,10 @@ def enable_agent(root: Path, agent_name: str, force: bool = False) -> int:
 
     if agent_name not in AGENT_CONFIGS:
         available = ", ".join(sorted(AGENT_CONFIGS.keys()))
-        print(f"error: unknown agent '{agent_name}'. Available: {available}", file=sys.stderr)
+        print(
+            f"error: unknown agent '{agent_name}'. Available: {available}",
+            file=sys.stderr,
+        )
         return 1
 
     # Resolve alias (e.g. opencode → claude)
@@ -518,7 +540,10 @@ def enable_agent(root: Path, agent_name: str, force: bool = False) -> int:
     # Ensure .fcontext exists
     ctx = root / ".fcontext"
     if not ctx.is_dir():
-        print("fatal: not an fcontext workspace (run 'fcontext init' first)", file=sys.stderr)
+        print(
+            "fatal: not an fcontext workspace (run 'fcontext init' first)",
+            file=sys.stderr,
+        )
         return 1
 
     # Copilot: write always-on .instructions.md
@@ -529,7 +554,7 @@ def enable_agent(root: Path, agent_name: str, force: bool = False) -> int:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(COPILOT_INSTRUCTIONS, encoding="utf-8")
 
-    # Claude/Cursor/Trae: write rules file
+    # Claude/Cursor/Trae/Qwen/Kiro: write rules file
     rules_path = config.get("rules_path")
     if rules_path:
         target = root / rules_path
@@ -545,6 +570,7 @@ def enable_agent(root: Path, agent_name: str, force: bool = False) -> int:
         print(f"    → {instructions_path}")
     if rules_path:
         print(f"    → {rules_path}")
+    print(f"    → skills_dir: {config['skills_dir']}")
     for p in written:
         print(f"    → {p}")
 
@@ -554,7 +580,7 @@ def enable_agent(root: Path, agent_name: str, force: bool = False) -> int:
 def list_agents(root: Path) -> int:
     """Show which agents are enabled."""
     print(f"  {'AGENT':<10} {'STATUS':<10} SKILLS")
-    print(f"  {'─'*10} {'─'*10} {'─'*30}")
+    print(f"  {'─' * 10} {'─' * 10} {'─' * 30}")
     for agent, config in AGENT_CONFIGS.items():
         # Resolve alias
         if "alias" in config:
@@ -564,7 +590,9 @@ def list_agents(root: Path) -> int:
         skills_dir = root / config["skills_dir"]
         skill_count = sum(1 for s in SKILLS if (skills_dir / s / "SKILL.md").exists())
         if skill_count > 0:
-            names = ", ".join(s for s in SKILLS if (skills_dir / s / "SKILL.md").exists())
+            names = ", ".join(
+                s for s in SKILLS if (skills_dir / s / "SKILL.md").exists()
+            )
             print(f"  {agent:<10} {'enabled':<10} {names}")
         else:
             print(f"  {agent:<10} {'—':<10}")

@@ -23,6 +23,9 @@ fcontext enable qwen       # .qwen/rules/fcontext.md
 fcontext enable kiro       # .kiro/steering/fcontext.md
 fcontext enable opencode   # Claude format
 fcontext enable openclaw   # skills/ only
+fcontext enable zed        # .agents/skills/*/SKILL.md
+fcontext enable pi         # .pi/skills/*/SKILL.md
+fcontext enable antigravity  # .agent/rules/fcontext.md + .agent/skills/
 ```
 
 ### `fcontext status`

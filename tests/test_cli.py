@@ -1,12 +1,19 @@
 """Tests for fcontext CLI — main() dispatcher and all cmd_* functions."""
+
 import argparse
 import os
+import sys
 from pathlib import Path
+from unittest import mock
 from unittest.mock import patch
 
 from fcontext.cli import (
-    main, _find_root,
-    cmd_experience, cmd_topic, cmd_req, cmd_reset,
+    _find_root,
+    cmd_experience,
+    cmd_req,
+    cmd_reset,
+    cmd_topic,
+    main,
 )
 
 
@@ -71,6 +78,18 @@ class TestCmdEnable:
         os.chdir(workspace)
         rc = main(["enable", "list"])
         assert rc == 0
+
+    def test_enable_zed(self, workspace: Path):
+        os.chdir(workspace)
+        rc = main(["enable", "zed"])
+        assert rc == 0
+        assert (workspace / ".agents" / "skills" / "fcontext" / "SKILL.md").exists()
+
+    def test_enable_pi(self, workspace: Path):
+        os.chdir(workspace)
+        rc = main(["enable", "pi"])
+        assert rc == 0
+        assert (workspace / ".pi" / "skills" / "fcontext" / "SKILL.md").exists()
 
 
 class TestCmdIndex:
@@ -287,9 +306,25 @@ class TestCmdReq:
 
     def test_req_add_full_args(self, workspace: Path):
         os.chdir(workspace)
-        rc = main(["req", "add", "Full req", "-t", "requirement",
-                    "-p", "P0", "--assignee", "Alice", "--tags", "api,auth",
-                    "--author", "Bob", "--source", "notes.md"])
+        rc = main(
+            [
+                "req",
+                "add",
+                "Full req",
+                "-t",
+                "requirement",
+                "-p",
+                "P0",
+                "--assignee",
+                "Alice",
+                "--tags",
+                "api,auth",
+                "--author",
+                "Bob",
+                "--source",
+                "notes.md",
+            ]
+        )
         assert rc == 0
 
 
@@ -313,22 +348,19 @@ class TestFindRoot:
 
 # ── cmd_* else-branch coverage (unreachable via argparse, tested directly) ────
 
+
 class TestCmdExperienceElse:
     """Cover cmd_experience else/update branches (L164-168)."""
 
     def test_experience_update(self, workspace: Path):
         """L164-165: experience update action."""
-        args = argparse.Namespace(
-            dir=str(workspace), exp_action="update", name=None
-        )
+        args = argparse.Namespace(dir=str(workspace), exp_action="update", name=None)
         rc = cmd_experience(args)
         assert rc == 0  # update with no experiences is a no-op
 
     def test_experience_unknown_action(self, workspace: Path, capsys):
         """L166-168: unknown experience action."""
-        args = argparse.Namespace(
-            dir=str(workspace), exp_action="bogus"
-        )
+        args = argparse.Namespace(dir=str(workspace), exp_action="bogus")
         rc = cmd_experience(args)
         assert rc == 1
         assert "unknown" in capsys.readouterr().err
@@ -338,9 +370,7 @@ class TestCmdTopicElse:
     """Cover cmd_topic else branch (L207-208)."""
 
     def test_topic_unknown_action(self, workspace: Path, capsys):
-        args = argparse.Namespace(
-            dir=str(workspace), topic_action="bogus"
-        )
+        args = argparse.Namespace(dir=str(workspace), topic_action="bogus")
         rc = cmd_topic(args)
         assert rc == 1
         assert "unknown" in capsys.readouterr().err
@@ -350,9 +380,7 @@ class TestCmdReqElse:
     """Cover cmd_req else branch (L255-256)."""
 
     def test_req_unknown_action(self, workspace: Path, capsys):
-        args = argparse.Namespace(
-            dir=str(workspace), req_action="bogus"
-        )
+        args = argparse.Namespace(dir=str(workspace), req_action="bogus")
         rc = cmd_req(args)
         assert rc == 1
         assert "unknown" in capsys.readouterr().err
@@ -377,10 +405,51 @@ class TestCmdResetGitignore:
     def test_reset_keeps_gitignore_with_user_entries(self, workspace: Path, capsys):
         """L133-134: gitignore with mixed entries → keep non-fcontext ones."""
         gitignore = workspace / ".gitignore"
-        gitignore.write_text(".fcontext/_cache/\n__pycache__/\n*.pyc\n*.egg-info/\nmy-custom-entry/\n")
+        gitignore.write_text(
+            ".fcontext/_cache/\n__pycache__/\n*.pyc\n*.egg-info/\nmy-custom-entry/\n"
+        )
         rc = self._do_reset(workspace, ["yes", "reset"])
         assert rc == 0
         assert gitignore.exists()
         content = gitignore.read_text()
         assert "my-custom-entry/" in content
         assert ".fcontext/_cache/" not in content
+
+
+class TestVersionFallback:
+    """Cover __init__.py ImportError fallback (L4-5)."""
+
+    def test_version_fallback_on_import_error(self):
+        """When _version import fails, fall back to '0.0.0+unknown'."""
+        real_import = __import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "fcontext._version":
+                raise ImportError("No _version")
+            return real_import(name, *args, **kwargs)
+
+        saved_modules = dict(sys.modules)
+        try:
+            for key in list(sys.modules):
+                if key.startswith("fcontext"):
+                    del sys.modules[key]
+
+            with patch("builtins.__import__", side_effect=mock_import):
+                import importlib
+                import fcontext
+                importlib.reload(fcontext)
+                assert fcontext.__version__ == "0.0.0+unknown"
+        finally:
+            for key in list(sys.modules):
+                if key.startswith("fcontext"):
+                    del sys.modules[key]
+            for key, mod in saved_modules.items():
+                if key.startswith("fcontext"):
+                    sys.modules[key] = mod
+
+    def test_enable_antigravity(self, workspace: Path):
+        os.chdir(workspace)
+        rc = main(["enable", "antigravity"])
+        assert rc == 0
+        assert (workspace / ".agent" / "skills" / "fcontext" / "SKILL.md").exists()
+        assert (workspace / ".agent" / "rules" / "fcontext.md").exists()

@@ -9,7 +9,7 @@
 | | |
 |---|---|
 | 🔄 **Cross-Agent, Cross-Session** | 👥 **Team Collaboration** |
-| Switch between Copilot, Claude, Cursor, Trae — your AI never starts from zero. | Export/import experience packs. Every team member's agent shares the same domain knowledge. |
+| Switch between Copilot, Claude, Cursor, Trae, Zed, Pi — your AI never starts from zero. | Export/import experience packs. Every team member's agent shares the same domain knowledge. |
 | 🛡️ **Industrial-Grade Delivery** | 🔒 **Offline & Secure** |
 | Structured context + requirements tracking + document indexing = consistent, auditable output. | All data local in `.fcontext/`. No cloud. No API keys. No telemetry. |
 
@@ -136,7 +136,7 @@ pip install fcontext
 
 cd your-project
 fcontext init
-fcontext enable copilot    # or: claude, cursor, trae, qwen, kiro, opencode, openclaw
+fcontext enable copilot    # or: claude, cursor, trae, qwen, kiro, opencode, openclaw, zed, pi, antigravity
 fcontext index docs/
 ```
 
@@ -156,6 +156,9 @@ Your AI agent now reads project context automatically on every session.
 | Kiro | `fcontext enable kiro` |
 | OpenCode | `fcontext enable opencode` |
 | OpenClaw | `fcontext enable openclaw` |
+| Zed | `fcontext enable zed` |
+| Pi | `fcontext enable pi` |
+| AntiGravity | `fcontext enable antigravity` |
 
 ---
 

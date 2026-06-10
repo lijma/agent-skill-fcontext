@@ -5,7 +5,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/fcontext?style=for-the-badge)](https://pypi.org/project/fcontext/)
 [![Python](https://img.shields.io/pypi/pyversions/fcontext?style=for-the-badge)](https://pypi.org/project/fcontext/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-8%20supported-green?style=for-the-badge)](#supported-agents)
+[![Agents](https://img.shields.io/badge/agents-11%20supported-green?style=for-the-badge)](#supported-agents)
 
 ---
 
@@ -87,6 +87,9 @@ In production environments, context is fragmented: requirements live in document
 | Kiro | `fcontext enable kiro` | `.kiro/steering/*.md` + `.kiro/skills/` |
 | OpenCode | `fcontext enable opencode` | Uses Claude format |
 | OpenClaw | `fcontext enable openclaw` | `skills/` only |
+| Zed | `fcontext enable zed` | `.agents/skills/*/SKILL.md` (Agent Skills standard) |
+| Pi | `fcontext enable pi` | `.pi/skills/*/SKILL.md` (also reads `.agents/skills/`) |
+| AntiGravity | `fcontext enable antigravity` | `.agent/rules/*.md` + `.agent/skills/` |
 
 ---
 

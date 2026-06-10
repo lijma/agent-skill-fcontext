@@ -268,6 +268,7 @@ fcontext topic clean                  # remove empty topic files
 #   OpenClaw →  skills/ only (no rules, personal AI assistant)
 #   Zed      →  .agents/skills/*/SKILL.md  (skills-only, Agent Skills standard)
 #   Pi       →  .pi/skills/*/SKILL.md      (skills-only, also reads .agents/skills/)
+#   AntiGravity → .agent/rules/fcontext.md + .agent/skills/*/SKILL.md
 
 # Minimal always-on instructions for Copilot (just the lookup order)
 COPILOT_INSTRUCTIONS = """\
@@ -428,6 +429,11 @@ AGENT_CONFIGS = {
     "pi": {
         "skills_dir": ".pi/skills",
         "detect": ".pi",
+    },
+    "antigravity": {
+        "rules_path": ".agent/rules/fcontext.md",
+        "skills_dir": ".agent/skills",
+        "detect": ".agent",
     },
 }
 

@@ -31,6 +31,7 @@ fcontext enable opencode   # uses Claude format
 fcontext enable openclaw   # skills/ only
 fcontext enable zed        # .agents/skills/*/SKILL.md
 fcontext enable pi         # .pi/skills/*/SKILL.md
+fcontext enable antigravity  # .agent/rules/*.md + .agent/skills/
 ```
 
 All agents share the same `.fcontext/` data — switch freely without losing context.

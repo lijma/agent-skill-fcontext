@@ -437,3 +437,10 @@ class TestVersionFallback:
             import fcontext
             importlib.reload(fcontext)
             assert fcontext.__version__ == "0.0.0+unknown"
+
+    def test_enable_antigravity(self, workspace: Path):
+        os.chdir(workspace)
+        rc = main(["enable", "antigravity"])
+        assert rc == 0
+        assert (workspace / ".agent" / "skills" / "fcontext" / "SKILL.md").exists()
+        assert (workspace / ".agent" / "rules" / "fcontext.md").exists()

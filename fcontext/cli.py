@@ -3,7 +3,7 @@
 
 Usage:
     fcontext init              Initialize .fcontext/ in current workspace
-    fcontext enable <agent>    Activate an AI agent (copilot/claude/cursor/trae/qwen/opencode/openclaw/zed/pi)
+    fcontext enable <agent>    Activate an AI agent (copilot/claude/cursor/trae/qwen/opencode/openclaw/zed/pi/antigravity)
     fcontext index             Scan & convert binary files to Markdown
     fcontext status            Show index statistics
     fcontext clean             Clear all cached files and reset index

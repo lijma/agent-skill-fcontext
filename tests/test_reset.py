@@ -85,3 +85,16 @@ class TestReset:
         init_workspace(workspace)
         assert (workspace / ".fcontext").is_dir()
         assert (workspace / ".fcontext" / "_index.json").exists()
+
+    def test_reset_removes_antigravity_files(self, workspace: Path):
+        enable_agent(workspace, "antigravity")
+        skills_dir = workspace / ".agent" / "skills"
+        rules = workspace / ".agent" / "rules" / "fcontext.md"
+        assert rules.exists()
+        for name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
+            assert (skills_dir / name / "SKILL.md").exists()
+        rc = self._do_reset(workspace, ["yes", "reset"])
+        assert rc == 0
+        assert not rules.exists()
+        for name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
+            assert not (skills_dir / name / "SKILL.md").exists()

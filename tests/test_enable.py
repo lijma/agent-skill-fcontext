@@ -214,3 +214,17 @@ class TestEnable:
         out = capsys.readouterr().out
         assert "opencode" in out
         assert "claude" in out  # shows alias target
+
+    def test_enable_antigravity(self, workspace: Path):
+        rc = enable_agent(workspace, "antigravity")
+        assert rc == 0
+        # Rules file in .agent/rules/
+        rules = workspace / ".agent" / "rules" / "fcontext.md"
+        assert rules.exists()
+        assert "Workflow Rules" in rules.read_text()
+        # Skills in .agent/skills/
+        skills_dir = workspace / ".agent" / "skills"
+        for name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
+            skill = skills_dir / name / "SKILL.md"
+            assert skill.exists(), f"{name}/SKILL.md missing"
+            assert f"name: {name}" in skill.read_text()

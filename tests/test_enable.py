@@ -138,8 +138,8 @@ class TestEnable:
             skill = skills_dir / name / "SKILL.md"
             assert skill.exists(), f"{name}/SKILL.md missing"
             assert f"name: {name}" in skill.read_text()
-        # No rules file (skills-only agent)
-        assert not (workspace / ".zed").exists()
+        # Skills-only agent, no rules file
+        assert not (workspace / ".agents" / "rules").exists()
 
     def test_enable_pi(self, workspace: Path):
         rc = enable_agent(workspace, "pi")

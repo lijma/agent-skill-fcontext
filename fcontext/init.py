@@ -267,7 +267,7 @@ fcontext topic clean                  # remove empty topic files
 #   OpenCode →  alias for claude (.claude/)
 #   OpenClaw →  skills/ only (no rules, personal AI assistant)
 #   Zed      →  .agents/skills/*/SKILL.md  (skills-only, Agent Skills standard)
-#   Pi       →  .pi/skills/*/SKILL.md      (skills-only, also reads .agents/skills/)
+#   Pi       →  .pi/skills/*/SKILL.md      (skills-only; Pi editor also reads .agents/skills/ at runtime)
 #   AntiGravity → .agent/rules/fcontext.md + .agent/skills/*/SKILL.md
 
 # Minimal always-on instructions for Copilot (just the lookup order)
@@ -541,7 +541,7 @@ def enable_agent(root: Path, agent_name: str, force: bool = False) -> int:
     if "alias" in config:
         resolved_name = config["alias"]
         config = AGENT_CONFIGS[resolved_name]
-        print(f"  (opencode uses same config as {resolved_name})")
+        print(f"  ({agent_name} uses same config as {resolved_name})")
 
     # Ensure .fcontext exists
     ctx = root / ".fcontext"
@@ -576,7 +576,6 @@ def enable_agent(root: Path, agent_name: str, force: bool = False) -> int:
         print(f"    → {instructions_path}")
     if rules_path:
         print(f"    → {rules_path}")
-    print(f"    → skills_dir: {config['skills_dir']}")
     for p in written:
         print(f"    → {p}")
 

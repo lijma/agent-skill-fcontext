@@ -357,11 +357,11 @@ def main(argv: list[str] | None = None) -> int:
     # --- enable ---
     p_enable = sub.add_parser(
         "enable",
-        help="Activate an AI agent (copilot/claude/cursor/trae/qwen/opencode/openclaw)",
+        help="Activate an AI agent (copilot/claude/cursor/trae/qwen/kiro/opencode/openclaw/zed/pi/antigravity)",
     )
     p_enable.add_argument(
         "agent",
-        help="Agent name: copilot, claude, cursor, trae, qwen, opencode, openclaw (or 'list' to show status)",
+        help="Agent name: copilot, claude, cursor, trae, qwen, kiro, opencode, openclaw, zed, pi, antigravity (or 'list' to show status)",
     )
     p_enable.add_argument(
         "-f", "--force", action="store_true", help="Overwrite existing agent config"

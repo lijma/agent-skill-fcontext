@@ -73,7 +73,7 @@ Save multi-step analysis to `.fcontext/_topics/<name>.md` when findings would be
 
 ```
 fcontext init                         # initialize .fcontext/
-fcontext enable <agent>               # activate agent (copilot/claude/cursor)
+fcontext enable <agent>               # activate agent (copilot/claude/cursor/codex/trae/qwen/kiro/opencode/openclaw/zed/pi/antigravity)
 fcontext status                       # index statistics
 fcontext clean                        # clear cache
 fcontext reset                        # delete all .fcontext/ data
@@ -120,7 +120,7 @@ After gaining significant new understanding about the project (domain concepts, 
 
 ```
 fcontext init                         # initialize .fcontext/
-fcontext enable <agent>               # activate agent (copilot/claude/cursor/trae/qwen/opencode)
+fcontext enable <agent>               # activate agent (copilot/claude/cursor/codex/trae/qwen/kiro/opencode/openclaw/zed/pi/antigravity)
 fcontext status                       # index statistics
 fcontext clean                        # clear cache
 fcontext reset                        # delete all .fcontext/ data
@@ -261,6 +261,7 @@ fcontext topic clean                  # remove empty topic files
 #   Copilot  →  .instructions.md (always-on) + .github/skills/*/SKILL.md
 #   Claude   →  .claude/rules/fcontext.md  + .claude/skills/*/SKILL.md
 #   Cursor   →  .cursor/rules/fcontext.md  + .cursor/skills/*/SKILL.md
+#   Codex    →  AGENTS.md                  + .codex/skills/*/SKILL.md
 #   Trae     →  .trae/rules/fcontext.md    + .trae/skills/*/SKILL.md
 #   Qwen-Code→  .qwen/rules/fcontext.md    + .qwen/skills/*/SKILL.md
 #   Kiro     →  .kiro/steering/fcontext.md + .kiro/skills/*/SKILL.md
@@ -330,7 +331,8 @@ Always check these BEFORE searching source files:
 - **NEVER modify** anything under `_experiences/` — it is read-only imported knowledge
 """
 
-# Rules content for agents that use a rules/ directory (claude, cursor, trae, qwen).
+# Rules content for agents that use a rules/ directory (claude, cursor, trae, qwen)
+# and Codex AGENTS.md.
 # Same content as COPILOT_INSTRUCTIONS but without the YAML frontmatter wrapper.
 AGENT_RULES_BODY = """# fcontext
 
@@ -399,6 +401,11 @@ AGENT_CONFIGS = {
         "rules_path": ".cursor/rules/fcontext.md",
         "skills_dir": ".cursor/skills",
         "detect": ".cursor",
+    },
+    "codex": {
+        "rules_path": "AGENTS.md",
+        "skills_dir": ".codex/skills",
+        "detect": ".codex",
     },
     "trae": {
         "rules_path": ".trae/rules/fcontext.md",

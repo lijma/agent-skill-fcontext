@@ -25,6 +25,7 @@ fcontext generates instructions in each agent's **native format**. Enable any ag
 fcontext enable copilot    # .github/instructions/*.instructions.md
 fcontext enable claude     # .claude/rules/*.md
 fcontext enable cursor     # .cursor/rules/*.md
+fcontext enable codex      # AGENTS.md + .codex/skills/
 fcontext enable trae       # .trae/rules/*.md
 fcontext enable kiro       # .kiro/steering/*.md
 fcontext enable opencode   # uses Claude format

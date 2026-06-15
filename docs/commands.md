@@ -18,6 +18,7 @@ Generate agent-specific instruction files pointing to `.fcontext/`.
 fcontext enable copilot    # .github/instructions/fcontext.instructions.md
 fcontext enable claude     # .claude/rules/fcontext.md
 fcontext enable cursor     # .cursor/rules/fcontext.md
+fcontext enable codex      # AGENTS.md + .codex/skills/
 fcontext enable trae       # .trae/rules/fcontext.md
 fcontext enable qwen       # .qwen/rules/fcontext.md
 fcontext enable kiro       # .kiro/steering/fcontext.md

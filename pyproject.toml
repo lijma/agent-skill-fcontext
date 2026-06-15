@@ -17,10 +17,18 @@ dependencies = [
 fcontext = "fcontext.cli:main"
 
 [project.optional-dependencies]
-test = ["pytest>=7.0"]
+test = [
+    "pytest>=7.0",
+    "pytest-cov>=5.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = [
+    "--cov=fcontext",
+    "--cov-report=term-missing",
+    "--cov-fail-under=100",
+]
 filterwarnings = [
     "ignore::DeprecationWarning:pytz",
 ]

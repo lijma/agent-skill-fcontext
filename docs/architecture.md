@@ -107,12 +107,14 @@ graph TD
     FC -->|enable copilot| GH[".github/instructions/<br/>fcontext.instructions.md"]
     FC -->|enable claude| CL[".claude/rules/<br/>fcontext.md"]
     FC -->|enable cursor| CU[".cursor/rules/<br/>fcontext.md"]
+    FC -->|enable codex| CX["AGENTS.md<br/>.codex/skills/"]
     FC -->|enable trae| TR[".trae/rules/<br/>fcontext.md"]
 
     GH --> A1["GitHub Copilot"]
     CL --> A2["Claude Code"]
     CU --> A3["Cursor"]
-    TR --> A4["Trae"]
+    CX --> A4["Codex"]
+    TR --> A5["Trae"]
 ```
 
 Each instruction file contains:

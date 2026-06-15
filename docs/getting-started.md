@@ -37,7 +37,7 @@ This creates `.fcontext/` with:
 ### 2. Enable your AI agent
 
 ```bash
-fcontext enable copilot    # or: claude, cursor, trae, qwen, kiro, opencode, openclaw, zed, pi, antigravity
+fcontext enable copilot    # or: claude, cursor, codex, trae, qwen, kiro, opencode, openclaw, zed, pi, antigravity
 ```
 
 Your agent now knows to read `.fcontext/` on every session.

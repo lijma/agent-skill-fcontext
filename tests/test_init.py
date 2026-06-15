@@ -1,6 +1,6 @@
 """Tests for fcontext init."""
 from pathlib import Path
-from fcontext.init import init_workspace
+from fcontext.init import init_workspace, enable_agent, get_all_agent_paths
 
 
 class TestInit:
@@ -62,3 +62,24 @@ class TestInit:
         init_workspace(empty_dir)
         init_workspace(empty_dir)  # should not crash
         assert (empty_dir / ".fcontext").is_dir()
+
+
+class TestEnableCodex:
+    def test_enable_codex_creates_agents_md_and_skills(self, empty_dir: Path):
+        init_workspace(empty_dir)
+
+        rc = enable_agent(empty_dir, "codex")
+
+        assert rc == 0
+        agents_md = empty_dir / "AGENTS.md"
+        assert agents_md.exists()
+        assert "fcontext" in agents_md.read_text()
+        for skill_name in ("fcontext", "fcontext-index", "fcontext-req", "fcontext-topic"):
+            skill = empty_dir / ".codex" / "skills" / skill_name / "SKILL.md"
+            assert skill.exists()
+
+    def test_codex_agent_paths_for_reset(self):
+        paths = get_all_agent_paths("codex")
+
+        assert "AGENTS.md" in paths
+        assert ".codex/skills/fcontext/SKILL.md" in paths

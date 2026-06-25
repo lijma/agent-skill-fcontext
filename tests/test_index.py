@@ -1,12 +1,14 @@
 """Tests for fcontext index."""
 import json
 import os
+import subprocess
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from fcontext.indexer import (
     run_index, run_index_file, run_index_dir, run_status, run_clean,
     _load_index, _save_index, _convert_file, _copy_text_file, _index_one,
     _cache_dir, _cache_filename, _scan_convertible, _index_path,
+    _is_image_ext, _ocr_image_file,
 )
 
 
@@ -550,6 +552,329 @@ class TestScanConvertibleSkipsHidden:
         names = {f.name for f in files}
         assert ".hidden.md" not in names
         assert "visible.md" in names
+
+
+# ── Image OCR tests ───────────────────────────────────────────────────────────
+
+class TestImageExt:
+    """_is_image_ext utility."""
+
+    def test_is_image_ext_true(self):
+        for ext in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".tif", ".webp", ".heic", ".heif"]:
+            p = Path(f"photo{ext}")
+            assert _is_image_ext(p)
+        for ext in [".PNG", ".JPG", ".JPEG"]:
+            p = Path(f"photo{ext}")
+            assert _is_image_ext(p)
+
+    def test_is_image_ext_false(self):
+        assert not _is_image_ext(Path("doc.pdf"))
+        assert not _is_image_ext(Path("notes.md"))
+        assert not _is_image_ext(Path("data.txt"))
+
+
+class TestScanFindsImages:
+    """Images should be found by the scanner."""
+
+    def test_scan_finds_png(self, workspace: Path):
+        (workspace / "screenshot.png").write_bytes(b"dummy png")
+        (workspace / "photo.jpg").write_bytes(b"dummy jpg")
+        files = _scan_convertible(workspace)
+        names = {f.name for f in files}
+        assert "screenshot.png" in names
+        assert "photo.jpg" in names
+
+    def test_scan_excludes_csv(self, workspace: Path):
+        (workspace / "image.png").write_bytes(b"dummy")
+        (workspace / "data.csv").write_text("a,b")
+        files = _scan_convertible(workspace)
+        names = {f.name for f in files}
+        assert "image.png" in names
+        assert "data.csv" not in names
+
+
+class TestOcrImageFileNotMacOS:
+    """_ocr_image_file fails gracefully on non-macOS."""
+
+    def test_skips_on_non_macos(self, tmp_path: Path, capsys):
+        source = tmp_path / "test.png"
+        source.write_bytes(b"dummy")
+        cache_path = tmp_path / "out.md"
+        with patch("platform.system", return_value="Linux"):
+            result = _ocr_image_file(source, cache_path, "test.png")
+        assert result is False
+        err = capsys.readouterr().err
+        assert "OCR requires macOS" in err
+
+    def test_skips_on_windows(self, tmp_path: Path, capsys):
+        source = tmp_path / "test.png"
+        source.write_bytes(b"dummy")
+        cache_path = tmp_path / "out.md"
+        with patch("platform.system", return_value="Windows"):
+            result = _ocr_image_file(source, cache_path, "test.png")
+        assert result is False
+        err = capsys.readouterr().err
+        assert "OCR requires macOS" in err
+
+
+class TestOcrImageFileSubprocess:
+    """_ocr_image_file subprocess paths."""
+
+    def test_swift_not_found(self, tmp_path: Path, capsys):
+        """Swift binary not found should fail."""
+        source = tmp_path / "test.png"
+        source.write_bytes(b"dummy")
+        cache_path = tmp_path / "out.md"
+        with patch("platform.system", return_value="Darwin"):
+            with patch("subprocess.run", side_effect=FileNotFoundError("swift not found")):
+                result = _ocr_image_file(source, cache_path, "test.png")
+        assert result is False
+        err = capsys.readouterr().err
+        assert "OCR error" in err
+
+    def test_returncode_2(self, tmp_path: Path, capsys):
+        """Exit code 2 = failed to load image."""
+        source = tmp_path / "test.png"
+        source.write_bytes(b"dummy")
+        cache_path = tmp_path / "out.md"
+        mock_result = MagicMock()
+        mock_result.returncode = 2
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+        with patch("platform.system", return_value="Darwin"):
+            with patch("subprocess.run", return_value=mock_result):
+                result = _ocr_image_file(source, cache_path, "test.png")
+        assert result is False
+        err = capsys.readouterr().err
+        assert "failed to load image" in err
+
+    def test_returncode_unknown(self, tmp_path: Path, capsys):
+        """Non-zero exit with no recognized code."""
+        source = tmp_path / "test.png"
+        source.write_bytes(b"dummy")
+        cache_path = tmp_path / "out.md"
+        mock_result = MagicMock()
+        mock_result.returncode = 3
+        mock_result.stdout = ""
+        mock_result.stderr = "some error"
+        with patch("platform.system", return_value="Darwin"):
+            with patch("subprocess.run", return_value=mock_result):
+                result = _ocr_image_file(source, cache_path, "test.png")
+        assert result is False
+        err = capsys.readouterr().err
+        assert "OCR error (exit=3)" in err
+        assert "some error" in err
+
+    def test_timeout(self, tmp_path: Path, capsys):
+        """Subprocess timeout should fail."""
+        source = tmp_path / "test.png"
+        source.write_bytes(b"dummy")
+        cache_path = tmp_path / "out.md"
+        with patch("platform.system", return_value="Darwin"):
+            with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="swift", timeout=60)):
+                result = _ocr_image_file(source, cache_path, "test.png")
+        assert result is False
+        err = capsys.readouterr().err
+        assert "OCR timed out" in err
+
+    def test_no_text_found(self, tmp_path: Path, capsys):
+        """Exit code 0 with empty output = no text found; still succeeds but writes empty."""
+        source = tmp_path / "test.png"
+        source.write_bytes(b"dummy")
+        cache_path = tmp_path / "out.md"
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+        with patch("platform.system", return_value="Darwin"):
+            with patch("subprocess.run", return_value=mock_result):
+                result = _ocr_image_file(source, cache_path, "test.png")
+        assert result is True
+        assert cache_path.exists()
+        content = cache_path.read_text()
+        assert "<!-- source: test.png -->" in content
+
+    def test_success(self, tmp_path: Path):
+        """Successful OCR should write recognized text to cache."""
+        source = tmp_path / "test.png"
+        source.write_bytes(b"dummy")
+        cache_path = tmp_path / "out.md"
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "Hello World\nLine 2\n"
+        mock_result.stderr = ""
+        with patch("platform.system", return_value="Darwin"):
+            with patch("subprocess.run", return_value=mock_result):
+                result = _ocr_image_file(source, cache_path, "test.png")
+        assert result is True
+        content = cache_path.read_text()
+        assert "<!-- source: test.png -->" in content
+        assert "Hello World" in content
+        assert "Line 2" in content
+
+
+class TestIndexOneImage:
+    """_index_one dispatches images to OCR."""
+
+    def test_index_one_calls_ocr(self, tmp_path: Path):
+        source = tmp_path / "photo.png"
+        source.write_bytes(b"dummy")
+        cache_path = tmp_path / "out.md"
+        with patch("fcontext.indexer._ocr_image_file", return_value=True) as mock_ocr:
+            result = _index_one(source, cache_path, "photo.png")
+        assert result is True
+        mock_ocr.assert_called_once_with(source, cache_path, "photo.png")
+
+
+class TestRunIndexFileImage:
+    """run_index_file with image files."""
+
+    def test_index_image_file(self, workspace: Path, capsys):
+        img = workspace / "screenshot.png"
+        img.write_bytes(b"dummy")
+        capsys.readouterr()
+        with patch("fcontext.indexer._ocr_image_file", return_value=True):
+            rc = run_index_file(workspace, img)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "cached:" in out
+
+    def test_index_image_file_failure(self, workspace: Path, capsys):
+        img = workspace / "photo.png"
+        img.write_bytes(b"dummy")
+        capsys.readouterr()
+        with patch("fcontext.indexer._ocr_image_file", return_value=False):
+            rc = run_index_file(workspace, img)
+        assert rc == 1
+
+    def test_index_image_in_index_json(self, workspace: Path):
+        img = workspace / "img.png"
+        img.write_bytes(b"dummy")
+        with patch("fcontext.indexer._ocr_image_file", return_value=True):
+            run_index_file(workspace, img)
+        idx = json.loads((workspace / ".fcontext" / "_index.json").read_text())
+        assert "img.png" in idx
+        assert idx["img.png"]["md"].startswith(".fcontext/_cache/")
+
+
+class TestRunIndexDirImage:
+    """run_index_dir with image files."""
+
+    def test_index_dir_finds_images(self, workspace: Path, capsys):
+        docs = workspace / "screenshots"
+        docs.mkdir()
+        (docs / "screen.png").write_bytes(b"dummy")
+        (docs / "shot.jpg").write_bytes(b"dummy")
+        capsys.readouterr()
+        with patch("fcontext.indexer._ocr_image_file", return_value=True):
+            rc = run_index_dir(workspace, docs)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "2 indexable files" in out
+
+    def test_index_dir_image_skips_up_to_date(self, workspace: Path, capsys):
+        docs = workspace / "shots"
+        docs.mkdir()
+        (docs / "img.png").write_bytes(b"dummy")
+        capsys.readouterr()
+        with patch("fcontext.indexer._ocr_image_file", return_value=True):
+            run_index_dir(workspace, docs)
+        capsys.readouterr()
+        with patch("fcontext.indexer._ocr_image_file", return_value=True):
+            run_index_dir(workspace, docs)
+        out = capsys.readouterr().out
+        assert "up-to-date" in out
+
+    def test_index_dir_image_failure(self, workspace: Path, capsys):
+        docs = workspace / "failed"
+        docs.mkdir()
+        (docs / "bad.png").write_bytes(b"dummy")
+        capsys.readouterr()
+        with patch("fcontext.indexer._ocr_image_file", return_value=False):
+            run_index_dir(workspace, docs)
+        out = capsys.readouterr().out
+        assert "failed" in out
+
+
+class TestRunIndexImage:
+    """Full workspace index with images."""
+
+    def test_run_index_with_images(self, workspace: Path, capsys):
+        (workspace / "doc.md").write_text("# Doc")
+        (workspace / "img.png").write_bytes(b"dummy")
+        capsys.readouterr()
+        with patch("fcontext.indexer._ocr_image_file", return_value=True):
+            rc = run_index(workspace)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Found 2 indexable files" in out
+        assert "indexed" in out
+
+    def test_run_index_image_skips_up_to_date(self, workspace: Path, capsys):
+        (workspace / "img.png").write_bytes(b"dummy")
+        with patch("fcontext.indexer._ocr_image_file", return_value=True):
+            run_index(workspace)
+        capsys.readouterr()
+        with patch("fcontext.indexer._ocr_image_file", return_value=True):
+            run_index(workspace)
+        out = capsys.readouterr().out
+        assert "up-to-date" in out
+
+    def test_run_index_image_force(self, workspace: Path, capsys):
+        (workspace / "img.png").write_bytes(b"dummy")
+        with patch("fcontext.indexer._ocr_image_file", return_value=True):
+            run_index(workspace)
+        capsys.readouterr()
+        with patch("fcontext.indexer._ocr_image_file", return_value=True):
+            run_index(workspace, force=True)
+        out = capsys.readouterr().out
+        assert "indexed" in out
+
+    def test_run_index_image_conversion_failure(self, workspace: Path, capsys):
+        (workspace / "img.png").write_bytes(b"dummy")
+        capsys.readouterr()
+        with patch("fcontext.indexer._ocr_image_file", return_value=False):
+            rc = run_index(workspace)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "failed" in out
+
+
+class TestStatusWithImages:
+    """Status command includes images."""
+
+    def test_status_shows_image_pending(self, workspace: Path, capsys):
+        (workspace / "img.png").write_bytes(b"dummy")
+        rc = run_status(workspace)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Pending:" in out
+
+    def test_status_image_indexed(self, workspace: Path, capsys):
+        imgs = workspace / "imgs"
+        imgs.mkdir()
+        (imgs / "shot.png").write_bytes(b"dummy")
+        with patch("fcontext.indexer._ocr_image_file", return_value=True):
+            run_index_file(workspace, imgs / "shot.png")
+        capsys.readouterr()
+        run_status(workspace)
+        out = capsys.readouterr().out
+        assert "Indexed:" in out
+
+
+class TestImageExtIndexedByDirScan:
+    """run_index_dir scan loop includes images."""
+
+    def test_index_dir_scans_images(self, workspace: Path, capsys):
+        docs = workspace / "docs"
+        docs.mkdir()
+        (docs / "img.png").write_bytes(b"dummy")
+        (docs / "notes.md").write_text("# Notes")
+        capsys.readouterr()
+        with patch("fcontext.indexer._ocr_image_file", return_value=True):
+            run_index_dir(workspace, docs)
+        out = capsys.readouterr().out
+        assert "Found 2 indexable files" in out
 
 
 class TestRunIndexDirPrintSummary:

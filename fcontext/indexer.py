@@ -4,7 +4,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
+import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -19,6 +22,12 @@ CONVERTIBLE_EXTS = {
     ".epub",
 }
 
+# Image formats that need OCR (macOS Vision Framework)
+IMAGE_EXTS = {
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp",
+    ".tiff", ".tif", ".webp", ".heic", ".heif",
+}
+
 # Text formats that can be copied directly to _cache
 TEXT_EXTS = {
     ".md", ".markdown", ".txt", ".text",
@@ -26,11 +35,80 @@ TEXT_EXTS = {
 }
 
 # All indexable extensions
-INDEXABLE_EXTS = CONVERTIBLE_EXTS | TEXT_EXTS
+INDEXABLE_EXTS = CONVERTIBLE_EXTS | TEXT_EXTS | IMAGE_EXTS
 
 
 def _is_text_ext(path: Path) -> bool:
     return path.suffix.lower() in TEXT_EXTS
+
+
+def _is_image_ext(path: Path) -> bool:
+    return path.suffix.lower() in IMAGE_EXTS
+
+
+_OCR_SWIFT_SOURCE = r'''import Vision
+import Cocoa
+
+guard CommandLine.arguments.count > 1 else { exit(1) }
+let path = CommandLine.arguments[1]
+let url = URL(fileURLWithPath: path)
+guard let image = NSImage(contentsOf: url) else { exit(2) }
+guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { exit(2) }
+let request = VNRecognizeTextRequest()
+request.recognitionLevel = .accurate
+request.usesLanguageCorrection = true
+let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+try handler.perform([request])
+guard let results = request.results, !results.isEmpty else { exit(0) }
+for result in results {
+    if let text = result.topCandidates(1).first?.string {
+        print(text)
+    }
+}
+'''
+
+
+def _ocr_image_file(source: Path, cache_path: Path, rel_path: str) -> bool:
+    """OCR an image file via macOS Vision Framework. Returns True on success."""
+    if platform.system() != "Darwin":
+        print(f"  ✗ {rel_path}: OCR requires macOS", file=sys.stderr)
+        return False
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".swift", delete=False
+        ) as f:
+            f.write(_OCR_SWIFT_SOURCE)
+            swift_path = f.name
+
+        result = subprocess.run(
+            ["swift", swift_path, str(source)],
+            capture_output=True, text=True, timeout=60,
+        )
+        os.unlink(swift_path)
+
+        if result.returncode == 2:
+            print(f"  ✗ {rel_path}: failed to load image", file=sys.stderr)
+            return False
+        if result.returncode != 0:
+            print(
+                f"  ✗ {rel_path}: OCR error (exit={result.returncode})",
+                file=sys.stderr,
+            )
+            if result.stderr:
+                print(f"    stderr: {result.stderr.strip()}", file=sys.stderr)
+            return False
+
+        text = result.stdout.strip()
+        header = f"<!-- source: {rel_path} -->\n\n"
+        cache_path.write_text(header + text + "\n", encoding="utf-8")
+        return True
+    except subprocess.TimeoutExpired:
+        print(f"  ✗ {rel_path}: OCR timed out", file=sys.stderr)
+        return False
+    except Exception as e:
+        print(f"  ✗ {rel_path}: OCR error — {e}", file=sys.stderr)
+        return False
 
 
 # Directories to skip
@@ -116,9 +194,11 @@ def _copy_text_file(source: Path, cache_path: Path, rel_path: str) -> bool:
 
 
 def _index_one(source: Path, cache_path: Path, rel_path: str) -> bool:
-    """Index a single file: copy text files, convert binaries."""
+    """Index a single file: copy text files, OCR images, convert binaries."""
     if _is_text_ext(source):
         return _copy_text_file(source, cache_path, rel_path)
+    if _is_image_ext(source):
+        return _ocr_image_file(source, cache_path, rel_path)
     return _convert_file(source, cache_path, rel_path)
 
 

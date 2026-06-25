@@ -1028,14 +1028,15 @@ class TestStatusSkipsImagesOnNonMacOS:
         assert "Convertible:" in out
         assert "1 files" in out  # only doc.md, not img.png
 
-    def test_index_dir_scans_images(self, workspace: Path, capsys):
+    def test_index_dir_scans_images_on_macos(self, workspace: Path, capsys):
         docs = workspace / "docs"
         docs.mkdir()
         (docs / "img.png").write_bytes(b"dummy")
         (docs / "notes.md").write_text("# Notes")
         capsys.readouterr()
-        with patch("fcontext.indexer._ocr_image_file", return_value=True):
-            run_index_dir(workspace, docs)
+        with patch("platform.system", return_value="Darwin"):
+            with patch("fcontext.indexer._ocr_image_file", return_value=True):
+                run_index_dir(workspace, docs)
         out = capsys.readouterr().out
         assert "Found 2 indexable files" in out
 

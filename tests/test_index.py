@@ -8,7 +8,7 @@ from fcontext.indexer import (
     run_index, run_index_file, run_index_dir, run_status, run_clean,
     _load_index, _save_index, _convert_file, _copy_text_file, _index_one,
     _cache_dir, _cache_filename, _scan_convertible, _index_path,
-    _is_image_ext, _ocr_image_file,
+    _is_image_ext, _ocr_image_file, _indexable_exts,
 )
 
 
@@ -594,7 +594,7 @@ class TestScanFindsImages:
 
 
 class TestOcrImageFileNotMacOS:
-    """_ocr_image_file skips gracefully on non-macOS."""
+    """_ocr_image_file fails on non-macOS."""
 
     def test_skips_on_non_macos(self, tmp_path: Path, capsys):
         source = tmp_path / "test.png"
@@ -602,12 +602,10 @@ class TestOcrImageFileNotMacOS:
         cache_path = tmp_path / "out.md"
         with patch("platform.system", return_value="Linux"):
             result = _ocr_image_file(source, cache_path, "test.png")
-        assert result is True
-        assert cache_path.exists()
-        content = cache_path.read_text()
-        assert "OCR not available" in content
-        out = capsys.readouterr().out
-        assert "skipped" in out
+        assert result is False
+        assert not cache_path.exists()
+        err = capsys.readouterr().err
+        assert "OCR requires macOS" in err
 
     def test_skips_on_windows(self, tmp_path: Path, capsys):
         source = tmp_path / "test.png"
@@ -615,12 +613,10 @@ class TestOcrImageFileNotMacOS:
         cache_path = tmp_path / "out.md"
         with patch("platform.system", return_value="Windows"):
             result = _ocr_image_file(source, cache_path, "test.png")
-        assert result is True
-        assert cache_path.exists()
-        content = cache_path.read_text()
-        assert "OCR not available" in content
-        out = capsys.readouterr().out
-        assert "skipped" in out
+        assert result is False
+        assert not cache_path.exists()
+        err = capsys.readouterr().err
+        assert "OCR requires macOS" in err
 
 
 class TestOcrImageFileSubprocess:
@@ -717,19 +713,6 @@ class TestOcrImageFileSubprocess:
         assert "<!-- source: test.png -->" in content
         assert "Hello World" in content
         assert "Line 2" in content
-
-
-class TestIndexOneImage:
-    """_index_one dispatches images to OCR."""
-
-    def test_index_one_calls_ocr(self, tmp_path: Path):
-        source = tmp_path / "photo.png"
-        source.write_bytes(b"dummy")
-        cache_path = tmp_path / "out.md"
-        with patch("fcontext.indexer._ocr_image_file", return_value=True) as mock_ocr:
-            result = _index_one(source, cache_path, "photo.png")
-        assert result is True
-        mock_ocr.assert_called_once_with(source, cache_path, "photo.png")
 
 
 class TestRunIndexFileImage:
@@ -868,8 +851,167 @@ class TestStatusWithImages:
         assert "Indexed:" in out
 
 
+class TestIndexableExts:
+    """_indexable_exts platform-aware set."""
+
+    def test_includes_images_on_macos(self):
+        with patch("platform.system", return_value="Darwin"):
+            exts = _indexable_exts()
+        assert ".png" in exts
+        assert ".jpg" in exts
+        assert ".pdf" in exts
+        assert ".md" in exts
+
+    def test_excludes_images_on_linux(self):
+        with patch("platform.system", return_value="Linux"):
+            exts = _indexable_exts()
+        assert ".png" not in exts
+        assert ".jpg" not in exts
+        assert ".pdf" in exts
+        assert ".md" in exts
+
+    def test_excludes_images_on_windows(self):
+        with patch("platform.system", return_value="Windows"):
+            exts = _indexable_exts()
+        assert ".png" not in exts
+        assert ".jpg" not in exts
+
+
+class TestScanSkipsImagesOnNonMacOS:
+    """Scanner should skip images on non-macOS."""
+
+    def test_scan_skips_images_on_linux(self, workspace: Path):
+        (workspace / "img.png").write_bytes(b"dummy")
+        (workspace / "doc.pdf").write_bytes(b"%PDF")
+        with patch("platform.system", return_value="Linux"):
+            files = _scan_convertible(workspace)
+        names = {f.name for f in files}
+        assert "img.png" not in names
+        assert "doc.pdf" in names
+
+    def test_scan_finds_images_on_macos(self, workspace: Path):
+        (workspace / "img.png").write_bytes(b"dummy")
+        (workspace / "doc.pdf").write_bytes(b"%PDF")
+        with patch("platform.system", return_value="Darwin"):
+            files = _scan_convertible(workspace)
+        names = {f.name for f in files}
+        assert "img.png" in names
+        assert "doc.pdf" in names
+
+
+class TestRunIndexDirSkipsImagesOnNonMacOS:
+    """run_index_dir should skip images on non-macOS."""
+
+    def test_dir_scan_skips_images_on_linux(self, workspace: Path, capsys):
+        docs = workspace / "docs"
+        docs.mkdir()
+        (docs / "img.png").write_bytes(b"dummy")
+        (docs / "notes.md").write_text("# Notes")
+        capsys.readouterr()
+        with patch("platform.system", return_value="Linux"):
+            rc = run_index_dir(workspace, docs)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Found 1 indexable files" in out
+        assert "notes.md" in out
+
+    def test_dir_scan_finds_images_on_macos(self, workspace: Path, capsys):
+        docs = workspace / "docs"
+        docs.mkdir()
+        (docs / "img.png").write_bytes(b"dummy")
+        (docs / "notes.md").write_text("# Notes")
+        capsys.readouterr()
+        with patch("platform.system", return_value="Darwin"):
+            with patch("fcontext.indexer._ocr_image_file", return_value=True):
+                rc = run_index_dir(workspace, docs)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Found 2 indexable files" in out
+
+
+class TestRunIndexSkipsImagesOnNonMacOS:
+    """Full workspace scan should skip images on non-macOS."""
+
+    def test_index_skips_images_on_linux(self, workspace: Path, capsys):
+        (workspace / "img.png").write_bytes(b"dummy")
+        (workspace / "doc.md").write_text("# Doc")
+        capsys.readouterr()
+        with patch("platform.system", return_value="Linux"):
+            rc = run_index(workspace)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Found 1 indexable files" in out
+
+    def test_index_finds_images_on_macos(self, workspace: Path, capsys):
+        (workspace / "img.png").write_bytes(b"dummy")
+        (workspace / "doc.md").write_text("# Doc")
+        capsys.readouterr()
+        with patch("platform.system", return_value="Darwin"):
+            with patch("fcontext.indexer._ocr_image_file", return_value=True):
+                rc = run_index(workspace)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Found 2 indexable files" in out
+
+
+class TestIndexOneImageDispatch:
+    """_index_one dispatches images to OCR only on macOS."""
+
+    def test_index_one_calls_ocr_on_macos(self, tmp_path: Path):
+        source = tmp_path / "photo.png"
+        source.write_bytes(b"dummy")
+        cache_path = tmp_path / "out.md"
+        with patch("platform.system", return_value="Darwin"):
+            with patch("fcontext.indexer._ocr_image_file", return_value=True) as mock_ocr:
+                result = _index_one(source, cache_path, "photo.png")
+        assert result is True
+        mock_ocr.assert_called_once()
+
+
 class TestImageExtIndexedByDirScan:
     """run_index_dir scan loop includes images."""
+
+    def test_index_dir_scans_images(self, workspace: Path, capsys):
+        docs = workspace / "docs"
+        docs.mkdir()
+        (docs / "img.png").write_bytes(b"dummy")
+        (docs / "notes.md").write_text("# Notes")
+        capsys.readouterr()
+        with patch("fcontext.indexer._ocr_image_file", return_value=True):
+            run_index_dir(workspace, docs)
+        out = capsys.readouterr().out
+        assert "Found 2 indexable files" in out
+
+
+# ── No stale-cache on non-macOS ───────────────────────────────────────────────
+
+class TestNoStaleCacheOnNonMacOS:
+    """Image files should NOT be added to cache or index on non-macOS."""
+
+    def test_cache_not_written_on_linux(self, workspace: Path):
+        img = workspace / "img.png"
+        img.write_bytes(b"dummy")
+        with patch("platform.system", return_value="Linux"):
+            # Explicit index of a single file still fails and writes nothing
+            from fcontext.indexer import run_index_file
+            rc = run_index_file(workspace, img)
+        assert rc == 1
+        index = _load_index(workspace)
+        assert "img.png" not in index
+
+
+class TestStatusSkipsImagesOnNonMacOS:
+    """Status should not report images as pending on non-macOS."""
+
+    def test_status_no_pending_images_on_linux(self, workspace: Path, capsys):
+        (workspace / "img.png").write_bytes(b"dummy")
+        (workspace / "doc.md").write_text("# Doc")
+        with patch("platform.system", return_value="Linux"):
+            rc = run_status(workspace)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Convertible:" in out
+        assert "1 files" in out  # only doc.md, not img.png
 
     def test_index_dir_scans_images(self, workspace: Path, capsys):
         docs = workspace / "docs"

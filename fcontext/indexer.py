@@ -47,6 +47,15 @@ def _is_image_ext(path: Path) -> bool:
     return path.suffix.lower() in IMAGE_EXTS
 
 
+def _indexable_exts() -> set[str]:
+    """Return extensions indexable on this platform.
+    Images are only indexable on macOS (where OCR is available)."""
+    exts = set(CONVERTIBLE_EXTS) | set(TEXT_EXTS)
+    if platform.system() == "Darwin":
+        exts.update(IMAGE_EXTS)
+    return exts
+
+
 _OCR_SWIFT_SOURCE = r'''import Vision
 import Cocoa
 
@@ -72,13 +81,8 @@ for result in results {
 def _ocr_image_file(source: Path, cache_path: Path, rel_path: str) -> bool:
     """OCR an image file via macOS Vision Framework. Returns True on success."""
     if platform.system() != "Darwin":
-        header = f"<!-- source: {rel_path} -->\n\n"
-        cache_path.write_text(
-            header + "<!-- OCR not available on this platform (requires macOS) -->\n",
-            encoding="utf-8",
-        )
-        print(f"  ~ {rel_path}: skipped (OCR requires macOS)")
-        return True
+        print(f"  ✗ {rel_path}: OCR requires macOS", file=sys.stderr)
+        return False
 
     swift_path = None
     try:
@@ -164,12 +168,13 @@ def _cache_filename(rel_path: str) -> str:
 def _scan_convertible(root: Path) -> list[Path]:
     """Walk workspace and find all indexable files (binary + text)."""
     results = []
+    exts = _indexable_exts()
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
         for fname in filenames:
             if fname.startswith("."):
                 continue
-            if Path(fname).suffix.lower() in INDEXABLE_EXTS:
+            if Path(fname).suffix.lower() in exts:
                 results.append(Path(dirpath) / fname)
     return results
 
@@ -275,12 +280,13 @@ def run_index_dir(root: Path, target_dir: Path, force: bool = False) -> int:
 
     # Scan only within target_dir
     files = []
+    exts = _indexable_exts()
     for dirpath, dirnames, filenames in os.walk(target_dir):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
         for fname in filenames:
             if fname.startswith("."):
                 continue
-            if Path(fname).suffix.lower() in INDEXABLE_EXTS:
+            if Path(fname).suffix.lower() in exts:
                 files.append(Path(dirpath) / fname)
 
     converted = 0

@@ -576,7 +576,7 @@ class TestImageExt:
 class TestScanFindsImages:
     """Images should be found by the scanner."""
 
-    def test_scan_finds_png(self, workspace: Path):
+    def test_scan_finds_images(self, workspace: Path):
         (workspace / "screenshot.png").write_bytes(b"dummy png")
         (workspace / "photo.jpg").write_bytes(b"dummy jpg")
         files = _scan_convertible(workspace)

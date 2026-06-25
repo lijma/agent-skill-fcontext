@@ -43,6 +43,7 @@ def _is_text_ext(path: Path) -> bool:
 
 
 def _is_image_ext(path: Path) -> bool:
+    """Check if a file has an image extension that needs OCR."""
     return path.suffix.lower() in IMAGE_EXTS
 
 
@@ -74,6 +75,7 @@ def _ocr_image_file(source: Path, cache_path: Path, rel_path: str) -> bool:
         print(f"  ✗ {rel_path}: OCR requires macOS", file=sys.stderr)
         return False
 
+    swift_path = None
     try:
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".swift", delete=False
@@ -85,7 +87,6 @@ def _ocr_image_file(source: Path, cache_path: Path, rel_path: str) -> bool:
             ["swift", swift_path, str(source)],
             capture_output=True, text=True, timeout=60,
         )
-        os.unlink(swift_path)
 
         if result.returncode == 2:
             print(f"  ✗ {rel_path}: failed to load image", file=sys.stderr)
@@ -109,6 +110,9 @@ def _ocr_image_file(source: Path, cache_path: Path, rel_path: str) -> bool:
     except Exception as e:
         print(f"  ✗ {rel_path}: OCR error — {e}", file=sys.stderr)
         return False
+    finally:
+        if swift_path is not None and os.path.exists(swift_path):
+            os.unlink(swift_path)
 
 
 # Directories to skip

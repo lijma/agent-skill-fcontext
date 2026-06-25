@@ -594,7 +594,7 @@ class TestScanFindsImages:
 
 
 class TestOcrImageFileNotMacOS:
-    """_ocr_image_file fails gracefully on non-macOS."""
+    """_ocr_image_file skips gracefully on non-macOS."""
 
     def test_skips_on_non_macos(self, tmp_path: Path, capsys):
         source = tmp_path / "test.png"
@@ -602,9 +602,12 @@ class TestOcrImageFileNotMacOS:
         cache_path = tmp_path / "out.md"
         with patch("platform.system", return_value="Linux"):
             result = _ocr_image_file(source, cache_path, "test.png")
-        assert result is False
-        err = capsys.readouterr().err
-        assert "OCR requires macOS" in err
+        assert result is True
+        assert cache_path.exists()
+        content = cache_path.read_text()
+        assert "OCR not available" in content
+        out = capsys.readouterr().out
+        assert "skipped" in out
 
     def test_skips_on_windows(self, tmp_path: Path, capsys):
         source = tmp_path / "test.png"
@@ -612,9 +615,12 @@ class TestOcrImageFileNotMacOS:
         cache_path = tmp_path / "out.md"
         with patch("platform.system", return_value="Windows"):
             result = _ocr_image_file(source, cache_path, "test.png")
-        assert result is False
-        err = capsys.readouterr().err
-        assert "OCR requires macOS" in err
+        assert result is True
+        assert cache_path.exists()
+        content = cache_path.read_text()
+        assert "OCR not available" in content
+        out = capsys.readouterr().out
+        assert "skipped" in out
 
 
 class TestOcrImageFileSubprocess:

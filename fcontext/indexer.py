@@ -72,8 +72,13 @@ for result in results {
 def _ocr_image_file(source: Path, cache_path: Path, rel_path: str) -> bool:
     """OCR an image file via macOS Vision Framework. Returns True on success."""
     if platform.system() != "Darwin":
-        print(f"  ✗ {rel_path}: OCR requires macOS", file=sys.stderr)
-        return False
+        header = f"<!-- source: {rel_path} -->\n\n"
+        cache_path.write_text(
+            header + "<!-- OCR not available on this platform (requires macOS) -->\n",
+            encoding="utf-8",
+        )
+        print(f"  ~ {rel_path}: skipped (OCR requires macOS)")
+        return True
 
     swift_path = None
     try:

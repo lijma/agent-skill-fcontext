@@ -579,7 +579,8 @@ class TestScanFindsImages:
     def test_scan_finds_images(self, workspace: Path):
         (workspace / "screenshot.png").write_bytes(b"dummy png")
         (workspace / "photo.jpg").write_bytes(b"dummy jpg")
-        files = _scan_convertible(workspace)
+        with patch("platform.system", return_value="Darwin"):
+            files = _scan_convertible(workspace)
         names = {f.name for f in files}
         assert "screenshot.png" in names
         assert "photo.jpg" in names
@@ -587,7 +588,8 @@ class TestScanFindsImages:
     def test_scan_excludes_csv(self, workspace: Path):
         (workspace / "image.png").write_bytes(b"dummy")
         (workspace / "data.csv").write_text("a,b")
-        files = _scan_convertible(workspace)
+        with patch("platform.system", return_value="Darwin"):
+            files = _scan_convertible(workspace)
         names = {f.name for f in files}
         assert "image.png" in names
         assert "data.csv" not in names
@@ -755,8 +757,9 @@ class TestRunIndexDirImage:
         (docs / "screen.png").write_bytes(b"dummy")
         (docs / "shot.jpg").write_bytes(b"dummy")
         capsys.readouterr()
-        with patch("fcontext.indexer._ocr_image_file", return_value=True):
-            rc = run_index_dir(workspace, docs)
+        with patch("platform.system", return_value="Darwin"):
+            with patch("fcontext.indexer._ocr_image_file", return_value=True):
+                rc = run_index_dir(workspace, docs)
         assert rc == 0
         out = capsys.readouterr().out
         assert "2 indexable files" in out
@@ -766,11 +769,13 @@ class TestRunIndexDirImage:
         docs.mkdir()
         (docs / "img.png").write_bytes(b"dummy")
         capsys.readouterr()
-        with patch("fcontext.indexer._ocr_image_file", return_value=True):
-            run_index_dir(workspace, docs)
+        with patch("platform.system", return_value="Darwin"):
+            with patch("fcontext.indexer._ocr_image_file", return_value=True):
+                run_index_dir(workspace, docs)
         capsys.readouterr()
-        with patch("fcontext.indexer._ocr_image_file", return_value=True):
-            run_index_dir(workspace, docs)
+        with patch("platform.system", return_value="Darwin"):
+            with patch("fcontext.indexer._ocr_image_file", return_value=True):
+                run_index_dir(workspace, docs)
         out = capsys.readouterr().out
         assert "up-to-date" in out
 
@@ -779,8 +784,9 @@ class TestRunIndexDirImage:
         docs.mkdir()
         (docs / "bad.png").write_bytes(b"dummy")
         capsys.readouterr()
-        with patch("fcontext.indexer._ocr_image_file", return_value=False):
-            run_index_dir(workspace, docs)
+        with patch("platform.system", return_value="Darwin"):
+            with patch("fcontext.indexer._ocr_image_file", return_value=False):
+                run_index_dir(workspace, docs)
         out = capsys.readouterr().out
         assert "failed" in out
 
@@ -792,8 +798,9 @@ class TestRunIndexImage:
         (workspace / "doc.md").write_text("# Doc")
         (workspace / "img.png").write_bytes(b"dummy")
         capsys.readouterr()
-        with patch("fcontext.indexer._ocr_image_file", return_value=True):
-            rc = run_index(workspace)
+        with patch("platform.system", return_value="Darwin"):
+            with patch("fcontext.indexer._ocr_image_file", return_value=True):
+                rc = run_index(workspace)
         assert rc == 0
         out = capsys.readouterr().out
         assert "Found 2 indexable files" in out
@@ -801,29 +808,34 @@ class TestRunIndexImage:
 
     def test_run_index_image_skips_up_to_date(self, workspace: Path, capsys):
         (workspace / "img.png").write_bytes(b"dummy")
-        with patch("fcontext.indexer._ocr_image_file", return_value=True):
-            run_index(workspace)
+        with patch("platform.system", return_value="Darwin"):
+            with patch("fcontext.indexer._ocr_image_file", return_value=True):
+                run_index(workspace)
         capsys.readouterr()
-        with patch("fcontext.indexer._ocr_image_file", return_value=True):
-            run_index(workspace)
+        with patch("platform.system", return_value="Darwin"):
+            with patch("fcontext.indexer._ocr_image_file", return_value=True):
+                run_index(workspace)
         out = capsys.readouterr().out
         assert "up-to-date" in out
 
     def test_run_index_image_force(self, workspace: Path, capsys):
         (workspace / "img.png").write_bytes(b"dummy")
-        with patch("fcontext.indexer._ocr_image_file", return_value=True):
-            run_index(workspace)
+        with patch("platform.system", return_value="Darwin"):
+            with patch("fcontext.indexer._ocr_image_file", return_value=True):
+                run_index(workspace)
         capsys.readouterr()
-        with patch("fcontext.indexer._ocr_image_file", return_value=True):
-            run_index(workspace, force=True)
+        with patch("platform.system", return_value="Darwin"):
+            with patch("fcontext.indexer._ocr_image_file", return_value=True):
+                run_index(workspace, force=True)
         out = capsys.readouterr().out
         assert "indexed" in out
 
     def test_run_index_image_conversion_failure(self, workspace: Path, capsys):
         (workspace / "img.png").write_bytes(b"dummy")
         capsys.readouterr()
-        with patch("fcontext.indexer._ocr_image_file", return_value=False):
-            rc = run_index(workspace)
+        with patch("platform.system", return_value="Darwin"):
+            with patch("fcontext.indexer._ocr_image_file", return_value=False):
+                rc = run_index(workspace)
         assert rc == 0
         out = capsys.readouterr().out
         assert "failed" in out
@@ -834,7 +846,8 @@ class TestStatusWithImages:
 
     def test_status_shows_image_pending(self, workspace: Path, capsys):
         (workspace / "img.png").write_bytes(b"dummy")
-        rc = run_status(workspace)
+        with patch("platform.system", return_value="Darwin"):
+            rc = run_status(workspace)
         assert rc == 0
         out = capsys.readouterr().out
         assert "Pending:" in out
@@ -846,7 +859,8 @@ class TestStatusWithImages:
         with patch("fcontext.indexer._ocr_image_file", return_value=True):
             run_index_file(workspace, imgs / "shot.png")
         capsys.readouterr()
-        run_status(workspace)
+        with patch("platform.system", return_value="Darwin"):
+            run_status(workspace)
         out = capsys.readouterr().out
         assert "Indexed:" in out
 
@@ -977,8 +991,9 @@ class TestImageExtIndexedByDirScan:
         (docs / "img.png").write_bytes(b"dummy")
         (docs / "notes.md").write_text("# Notes")
         capsys.readouterr()
-        with patch("fcontext.indexer._ocr_image_file", return_value=True):
-            run_index_dir(workspace, docs)
+        with patch("platform.system", return_value="Darwin"):
+            with patch("fcontext.indexer._ocr_image_file", return_value=True):
+                run_index_dir(workspace, docs)
         out = capsys.readouterr().out
         assert "Found 2 indexable files" in out
 
